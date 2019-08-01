@@ -1,0 +1,23 @@
+#
+# Makefile for the Synaptics DSX touchscreen driver.
+#
+
+ccflags-y += -DDEBUG
+
+obj-m += synaptics_dsx_td4310.o
+
+synaptics_dsx_td4310-objs := synaptics_dsx_i2c.o \
+	synaptics_dsx_rmi_dev.o \
+	synaptics_dsx_fw_update.o  \
+	synaptics_dsx_test_reporting.o
+
+.PHONY:modules
+
+modules:
+	make $(BSP_MAKE_EXTRA_ARGS) ARCH=$(BSP_BOARD_ARCH) CROSS_COMPILE=$(BSP_KERNEL_CROSS_COMPILE) -C $(BSP_KERNEL_PATH) O=$(BSP_KERNEL_OUT) M=`pwd` $@
+
+modules_install:
+	make $(BSP_MAKE_EXTRA_ARGS) ARCH=$(BSP_BOARD_ARCH) CROSS_COMPILE=$(BSP_KERNEL_CROSS_COMPILE) -C $(BSP_KERNEL_PATH) O=$(BSP_KERNEL_OUT) M=`pwd` INSTALL_MOD_PATH=$(BSP_MODULES_OUT) $@
+
+clean:
+	make -C $(BSP_KERNEL_PATH) O=$(BSP_KERNEL_OUT) M=`pwd` $@
