@@ -42,6 +42,7 @@
 #include <linux/of_platform.h>
 #include <linux/of_device.h>
 #include <linux/gpio.h>
+#include <linux/of_gpio.h>
 
 #include "ams_tcs3430.h"
 #include "tcs3430_regs.h"
@@ -980,10 +981,14 @@ static int tcs3430_init_dt(struct ams_tcs3430_platform_data *pdata)
 	if (!of_property_read_u32(np, "als_can_wake", &val))
 		pdata->als_can_wake = (val == 0) ? false : true;
 
+	if (!of_property_read_u32(np, "gpios", &val)){
+		pdata->int_gpio = of_get_named_gpio_flags(np, "gpios", 0, NULL);//val;
+		printk("%s %d %d %d", __func__,__LINE__,of_get_gpio(np, 0),pdata->int_gpio);
+	}
 	return 0;
 }
 
-#define TCS3430_INT_GPIO 133
+#define TCS3430_INT_GPIO 240//133//112+128=240 l5pro
 static int tcs3430_probe(struct i2c_client *client,
 				   const struct i2c_device_id *idp)
 {
@@ -995,6 +1000,7 @@ static int tcs3430_probe(struct i2c_client *client,
 	struct device *dev = &client->dev;
 	static struct tcs3430_chip *chip;
 	struct ams_tcs3430_platform_data *pdata = dev->platform_data;
+	printk("%s E\n", __func__);
 
 	if (!pdata) {
 		pdata = kzalloc(sizeof(struct ams_tcs3430_platform_data),
@@ -1095,19 +1101,25 @@ static int tcs3430_probe(struct i2c_client *client,
 	if (ret)
 		goto input_a_sysfs_failed;
 
-	ret = gpio_request(TCS3430_INT_GPIO, "gpio_tcs3430");
+    if (pdata->int_gpio <= 0)
+		pdata->int_gpio = TCS3430_INT_GPIO;
+
+	if (gpio_is_valid(pdata->int_gpio))
+		ret = devm_gpio_request(dev, pdata->int_gpio, "gpio_tcs3430");
+	else
+		dev_err(dev,"invalid gpio %d",pdata->int_gpio);
 	if (ret < 0) {
-		dev_err(dev, "gpio_request error\n");
+		dev_err(dev, "gpio_request error %d\n", pdata->int_gpio);
 		return -EINVAL;
 	}
 
-	ret = gpio_direction_input(TCS3430_INT_GPIO);
+	ret = gpio_direction_input(pdata->int_gpio);
 	if (ret < 0) {
 		dev_err(dev, "gpio_direction_input error\n");
 		return -EINVAL;
 	}
 
-	client->irq = gpio_to_irq(TCS3430_INT_GPIO);
+	client->irq = gpio_to_irq(pdata->int_gpio);
 	/* interrupt enable  : irq 0 is not allowed */
 	if (!client->irq) {
 		dev_err(dev, "No IRQ configured\n");
@@ -1135,12 +1147,12 @@ static int tcs3430_probe(struct i2c_client *client,
 	chip->amux = 0x00;
 	dev_info(dev, "Probe ok.\n");
 
-	printk("%s Probe ok.\n", __func__);
+	printk("%s Probe ok %d %d.\n", __func__, __LINE__,pdata->int_gpio);
 
 	return 0;
 
 irq_register_fail:
-	gpio_free(TCS3430_INT_GPIO);
+	gpio_free(pdata->int_gpio);
 	if (chip->a_idev) {
 		tcs3430_remove_sysfs_interfaces(&chip->a_idev->dev,
 						als_attrs,
@@ -1231,13 +1243,13 @@ err_power:
 static int tcs3430_remove(struct i2c_client *client)
 {
 	struct tcs3430_chip *chip = i2c_get_clientdata(client);
-	free_irq(client->irq, chip);
+	//free_irq(client->irq, chip);
 	if (chip->a_idev) {
 		tcs3430_remove_sysfs_interfaces(&chip->a_idev->dev,
 			als_attrs, ARRAY_SIZE(als_attrs));
 		input_unregister_device(chip->a_idev);
 	}
-
+	gpio_free(chip->pdata->int_gpio);
 	if (chip->pdata->platform_teardown)
 		chip->pdata->platform_teardown(&client->dev);
 	i2c_set_clientdata(client, NULL);

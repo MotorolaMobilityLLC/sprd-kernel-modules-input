@@ -149,6 +149,7 @@ struct ams_tcs3430_platform_data {
 	int (*platform_init)(void);
 	void (*platform_teardown)(struct device *dev);
 	char const *als_name;
+	unsigned int int_gpio;
 	struct tcs3430_parameters parameters;
 	bool als_can_wake;
 #ifdef CONFIG_OF

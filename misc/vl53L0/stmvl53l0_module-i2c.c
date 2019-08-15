@@ -77,6 +77,24 @@ static int stmvl53l0_parse_vdd(struct device *dev, struct i2c_data *data)
 	return ret;
 }
 
+static int vl53l0_init_dt(struct device *dev, struct stmvl53l0_data *pdata)
+{
+	struct device_node *np = dev->of_node;
+	u32 val;
+
+	if (!dev->of_node)
+		return 0;
+
+	if (!of_property_read_u32(np, "reset_gpios", &val))
+		pdata->xshut_gpio = val;
+
+	if (!of_property_read_u32(np, "irq_gpios", &val))
+		pdata->irq_gpio = val;
+
+
+	return 0;
+}
+
 static int stmvl53l0_probe(struct i2c_client *client,
 			   const struct i2c_device_id *id)
 {
@@ -102,6 +120,9 @@ static int stmvl53l0_probe(struct i2c_client *client,
 		i2c_object = (struct i2c_data *)vl53l0_data->client_object;
 	}
 	i2c_object->client = client;
+	if (client->dev.of_node) {
+		vl53l0_init_dt(&client->dev, vl53l0_data);
+	}
 
 	/* setup bus type */
 	vl53l0_data->bus_type = I2C_BUS;
@@ -111,6 +132,16 @@ static int stmvl53l0_probe(struct i2c_client *client,
 
 	/* setup device name */
 	vl53l0_data->dev_name = dev_name(&client->dev);
+	if (vl53l0_data->xshut_gpio == 0)
+		vl53l0_data->xshut_gpio = 133;//95//130
+	if (vl53l0_data->irq_gpio == 0)
+		vl53l0_data->irq_gpio = 132;//132//97//131 TODO: parse form dts
+	gpio_request(vl53l0_data->xshut_gpio, "vl53l0_xshut_gpio");
+	gpio_direction_output(vl53l0_data->xshut_gpio, 0);
+	usleep_range(2950, 3000);
+	gpio_direction_output(vl53l0_data->xshut_gpio, 1);
+	usleep_range(2950, 3000);
+	gpio_request(vl53l0_data->irq_gpio, "vl53l0_gpio_int");
 
 	/* setup device data */
 	dev_set_drvdata(&client->dev, vl53l0_data);
@@ -124,7 +155,7 @@ static int stmvl53l0_probe(struct i2c_client *client,
 	/* init default value */
 	i2c_object->power_up = 0;
 
-	vl53l0_dbgmsg("End\n");
+	vl53l0_dbgmsg("End %d %d \n", vl53l0_data->xshut_gpio, vl53l0_data->irq_gpio);
 	return rc;
 }
 
@@ -133,6 +164,8 @@ static int stmvl53l0_remove(struct i2c_client *client)
 	struct stmvl53l0_data *data = i2c_get_clientdata(client);
 
 	vl53l0_dbgmsg("Enter\n");
+	gpio_free(data->xshut_gpio);
+	gpio_free(data->irq_gpio);
 
 	/* Power down the device */
 	stmvl53l0_power_down_i2c(data->client_object);
@@ -242,7 +275,7 @@ int stmvl53l0_init_i2c(void)
 
 #ifdef STM_TEST
 	if (!ret) {
-		adapter = i2c_get_adapter(1);
+		adapter = i2c_get_adapter(4);
 		if (!adapter)
 			ret = -EINVAL;
 		else

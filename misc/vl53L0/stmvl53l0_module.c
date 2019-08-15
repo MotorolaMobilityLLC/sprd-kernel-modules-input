@@ -38,8 +38,9 @@
 #include "vl53l0_api.h"
 
 /*#define USE_INT */
-#define IRQ_NUM	   133 /*130*/
-#define XSHUT_GPIO 132 /*131*/
+#define IRQ_NUM	   133 //87 l5pro//133 /*130*/
+#define XSHUT_GPIO 132 //86 l5pro//132 /*131*/
+
 /* #define DEBUG_TIME_LOG */
 #ifdef DEBUG_TIME_LOG
 struct timeval start_tv, stop_tv;
@@ -2593,12 +2594,11 @@ int stmvl53l0_setup(struct stmvl53l0_data *data)
 
 #ifdef USE_INT
 	/* init interrupt */
-	gpio_request(IRQ_NUM, "vl53l0_gpio_int");
-	gpio_direction_input(IRQ_NUM);
-	irq = gpio_to_irq(IRQ_NUM);
+	gpio_direction_input(data->irq_gpio);
+	irq = gpio_to_irq(data->irq_gpio);
 	if (irq < 0) {
 		vl53l0_errmsg("filed to map GPIO: %d to interrupt:%d\n",
-			IRQ_NUM, irq);
+			data->irq_gpio, irq);
 	} else {
 		vl53l0_dbgmsg("register_irq:%d\n", irq);
 		/* IRQF_TRIGGER_FALLING- poliarity:0 IRQF_TRIGGER_RISNG -
@@ -2774,11 +2774,11 @@ static int __init stmvl53l0_init(void)
 	/* assign function table */
 	pmodule_func_tbl = &stmvl53l0_module_func_tbl;
 	papi_func_tbl = &stmvl53l0_api_func_tbl;
-	gpio_request(XSHUT_GPIO, "vl53l0_xshut_gpio");
-	gpio_direction_output(XSHUT_GPIO, 0);
-	usleep_range(2950, 3000);
-	gpio_direction_output(XSHUT_GPIO, 1);
-	usleep_range(2950, 3000);
+//	gpio_request(XSHUT_GPIO, "vl53l0_xshut_gpio");
+//	gpio_direction_output(XSHUT_GPIO, 0);
+//	usleep_range(2950, 3000);
+//	gpio_direction_output(XSHUT_GPIO, 1);
+//	usleep_range(2950, 3000);
 
 
 	/* client specific init function */
@@ -2795,7 +2795,7 @@ static int __init stmvl53l0_init(void)
 static void __exit stmvl53l0_exit(void)
 {
 	vl53l0_dbgmsg("Enter\n");
-	gpio_free(XSHUT_GPIO);
+//	gpio_free(XSHUT_GPIO);
 	vl53l0_dbgmsg("End\n");
 }
 

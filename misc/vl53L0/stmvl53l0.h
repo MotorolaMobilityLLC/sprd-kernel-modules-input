@@ -127,6 +127,8 @@ struct stmvl53l0_data {
 
 	/* misc device */
 	struct miscdevice miscdev;
+	int xshut_gpio;
+	int irq_gpio;
 
 	int irq;
 	unsigned int reset;
