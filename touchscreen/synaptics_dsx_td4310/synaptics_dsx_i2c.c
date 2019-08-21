@@ -2941,24 +2941,59 @@ static ssize_t synaptics_rmi4_f34_configid_show(struct device *dev,
 {
 	struct synaptics_rmi4_data *rmi4_data = dev_get_drvdata(dev);
 
-	return snprintf(buf, PAGE_SIZE, "0x%x\n", rmi4_data->config_id);
+	return snprintf(buf, PAGE_SIZE, "Configid: 0x%x\n", rmi4_data->config_id);
 }
 
+static ssize_t synaptics_rmi4_f34_firmwareid_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct synaptics_rmi4_data *rmi4_data = dev_get_drvdata(dev);
+
+	return snprintf(buf, PAGE_SIZE, "Firmware version: 0x%x\n", rmi4_data->firmware_id);
+}
 static ssize_t synaptics_rmi4_f01_product_id_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
 	struct synaptics_rmi4_data *rmi4_data = dev_get_drvdata(dev);
 
-	return snprintf(buf, PAGE_SIZE, "%s\n",
+	return snprintf(buf, PAGE_SIZE, "Chip id:0x%s\n",
 			(rmi4_data->rmi4_mod_info.product_id_string));
 }
 
-static DEVICE_ATTR(tp_firmware_version, 0664,
+static ssize_t synaptics_light_suspend_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	unsigned int input;
+
+	if (kstrtouint(buf, 10, &input))
+		return -EINVAL;
+
+	if (input == 1)
+		synaptics_rmi4_suspend(dev);
+	else if (input == 0)
+		synaptics_rmi4_resume(dev);
+	else
+		return -EINVAL;
+
+	return count;
+}
+
+static ssize_t ts_input_name_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%s\n", DRIVER_NAME);
+}
+
+static DEVICE_ATTR(product_id, 0664,
 	synaptics_rmi4_f34_configid_show,
 	synaptics_rmi4_store_error);
-static DEVICE_ATTR(product_id, 0664,
+static DEVICE_ATTR(firmware_version, 0664,
+	synaptics_rmi4_f34_firmwareid_show, NULL);
+static DEVICE_ATTR(chip_id, 0664,
 	synaptics_rmi4_f01_product_id_show,
 	synaptics_rmi4_store_error);
+static DEVICE_ATTR(ts_suspend, 0664, NULL, synaptics_light_suspend_store);
+static DEVICE_ATTR(input_name, 0664, ts_input_name_show, NULL);
 
 static irqreturn_t synaptics_rmi4_irq_handler(int irq, void *p)
 {
@@ -2971,8 +3006,11 @@ static irqreturn_t synaptics_rmi4_irq_handler(int irq, void *p)
 }
 
 static struct attribute *synaptics_rmi4_attrs[] = {
-	attrify(tp_firmware_version),
 	attrify(product_id),
+	attrify(firmware_version),
+	attrify(chip_id),
+	attrify(ts_suspend),
+	attrify(input_name),
 	NULL,
 };
 
@@ -3091,62 +3129,6 @@ static int synaptics_rmi4_power_on(
 	msleep(board->reset_delay_ms);
 
 	return 0;
-}
-
-static struct device *ts_dev = NULL;
-static ssize_t synaptics_light_suspend_store(struct device *dev,
-		struct device_attribute *attr, const char *buf, size_t count)
-{
-	unsigned int input;
-	dev = ts_dev;
-
-	if (kstrtouint(buf, 10, &input))
-		return -EINVAL;
-
-	if (input == 1)
-		synaptics_rmi4_suspend(dev);
-	else if (input == 0)
-		synaptics_rmi4_resume(dev);
-	else
-		return -EINVAL;
-
-	return count;
-}
-
-static ssize_t ts_input_name_show(struct device *dev,
-	struct device_attribute *attr, char *buf)
-{
-	return sprintf(buf, "%s\n", DRIVER_NAME);
-}
-
-static DEVICE_ATTR(ts_suspend, 0664, NULL, synaptics_light_suspend_store);
-static DEVICE_ATTR(input_name, 0664, ts_input_name_show, NULL);
-
-static struct attribute *TP_sysfs_attrs[] = {
-	attrify(ts_suspend),
-	attrify(input_name),
-	NULL,
-};
-
-static struct kobject *TP_ctrl_kobj = NULL;
-static struct attribute_group TP_attr_group = {
-        .attrs = TP_sysfs_attrs,
-};
-
-static int ctp_sysfs_init(struct i2c_client *client)
-{
-	TP_ctrl_kobj = kobject_create_and_add("touchscreen", NULL);
-	if (!TP_ctrl_kobj){
-		dev_err(&client->dev,"Create TP_sysfs_init failed!\n");
-		return -ENOMEM;
-	}
-	return sysfs_create_group(TP_ctrl_kobj, &TP_attr_group);
-}
-
-static void ctp_sysfs_exit(void)
-{
-	sysfs_remove_group(TP_ctrl_kobj, &TP_attr_group);
-	kobject_put(TP_ctrl_kobj);
 }
 
 /**
@@ -3295,13 +3277,11 @@ static int synaptics_rmi4_probe(struct i2c_client *client,
 		goto err_sysfs;
 	}
 
-	retval = ctp_sysfs_init(client);
+	retval = sysfs_create_link(NULL, &client->dev.kobj, "touchscreen");
 	if (retval < 0) {
-		dev_err(&client->dev, "Fail to create debug files!");
+		dev_err(&rmi4_data->i2c_client->dev, "Failed to create link!");
 		goto err_sysfs;
 	}
-
-	ts_dev =  &client->dev;
 
 	dev_err(&client->dev,
 			"%s: ====Synaptics probe end======\n",
@@ -3310,7 +3290,6 @@ static int synaptics_rmi4_probe(struct i2c_client *client,
 	return retval;
 
 err_sysfs:
-	ctp_sysfs_exit();
 
 	sysfs_remove_group(&client->dev.kobj, &attr_group);
 	for (attr_count--; attr_count >= 0; attr_count--) {
