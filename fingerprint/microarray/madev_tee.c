@@ -349,32 +349,36 @@ static const struct file_operations sfops = {
 
 static int init_file_node(void)
 {
-	  int ret;
-	  ret = alloc_chrdev_region(&sdev->idd, 0, 1, MA_CHR_DEV_NAME);
-	  if (ret < 0) {
-		  MALOGW("alloc_chrdev_region error!");
-		  return -1;
-	  }
-	  sdev->chd = cdev_alloc();
-	  if (!sdev->chd) {
-			MALOGW("cdev_alloc error!");
-			return -1;
-	  }
-	  sdev->chd->owner = THIS_MODULE;
-	  sdev->chd->ops = &sfops;
-	  cdev_add(sdev->chd, sdev->idd, 1);
-	  sdev->cls = class_create(THIS_MODULE, MA_CHR_DEV_NAME);
-	  if (IS_ERR(sdev->cls)) {
-			MALOGE("class_create");
-			return -1;
-	  }
-	  sdev->dev = device_create(sdev->cls, NULL, sdev->idd, NULL, MA_CHR_FILE_NAME);
-	  ret = IS_ERR(sdev->dev) ? PTR_ERR(sdev->dev) : 0;
-	  if (ret) {
-			MALOGE("device_create");
-			return -1;
-	  }
-	  return 0;
+	int ret;
+	ret = alloc_chrdev_region(&sdev->idd, 0, 1, MA_CHR_DEV_NAME);
+	if (ret < 0) {
+		MALOGW("alloc_chrdev_region error!");
+		return -1;
+	}
+	sdev->chd = cdev_alloc();
+	if (!sdev->chd) {
+		MALOGW("cdev_alloc error!");
+		return -1;
+	}
+	sdev->chd->owner = THIS_MODULE;
+	sdev->chd->ops = &sfops;
+	ret = cdev_add(sdev->chd, sdev->idd, 1);
+	if (ret) {
+		MALOGE("cdev_add");
+		return -1;
+	}
+	sdev->cls = class_create(THIS_MODULE, MA_CHR_DEV_NAME);
+	if (IS_ERR(sdev->cls)) {
+		MALOGE("class_create");
+		return -1;
+	}
+	sdev->dev = device_create(sdev->cls, NULL, sdev->idd, NULL, MA_CHR_FILE_NAME);
+	ret = IS_ERR(sdev->dev) ? PTR_ERR(sdev->dev) : 0;
+	if (ret) {
+		MALOGE("device_create");
+		return -1;
+	}
+	return 0;
 }
 
 static int deinit_file_node(void)
