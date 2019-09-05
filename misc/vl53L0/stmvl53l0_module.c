@@ -1421,9 +1421,8 @@ static int stmvl53l0_ioctl_handler(struct file *file,
 	VL53L0_DeviceModes deviceMode;
 	uint8_t page_num = 0;
 	VL53L0_Error Status = VL53L0_ERROR_NONE;
+       uint16_t reg16_data  = 0;
 
-	if (!data)
-		return -EINVAL;
 
 	vl53l0_dbgmsg("Enter enable_ps_sensor:%d\n", data->enable_ps_sensor);
 	switch (cmd) {
@@ -1629,10 +1628,12 @@ static int stmvl53l0_ioctl_handler(struct file *file,
 					reg.reg_data);
 			break;
 		case(2):
-			if (reg.is_read)
+			if (reg.is_read) {
 				reg.status = VL53L0_RdWord(vl53l0_dev,
 					(uint8_t)reg.reg_index,
-					(uint16_t *)&reg.reg_data);
+					&reg16_data);
+			       reg.reg_data = reg16_data;
+			}
 			else
 				reg.status = VL53L0_WrWord(vl53l0_dev,
 					(uint8_t)reg.reg_index,
@@ -1943,14 +1944,14 @@ static int stmvl53l0_flush(struct file *file, fl_owner_t id)
 	 *instance are opened multiple times on some platforms
 	 */
 	mutex_lock(&data->work_mutex);
-	if (data) {
-		if (data->enable_ps_sensor == 1) {
-			/* turn off tof sensor if it's enabled */
-			data->enable_ps_sensor = 0;
-			/* to stop */
-			stmvl53l0_stop(data);
-		}
+
+	if (data->enable_ps_sensor == 1) {
+		/* turn off tof sensor if it's enabled */
+		data->enable_ps_sensor = 0;
+		/* to stop */
+		stmvl53l0_stop(data);
 	}
+
 	mutex_unlock(&data->work_mutex);
 
 	return 0;
@@ -2246,10 +2247,12 @@ static int stmvl53l0_config_use_case(struct stmvl53l0_data *data)
 	}
 
 	if (Status == VL53L0_ERROR_NONE) {
+	if (papi_func_tbl && papi_func_tbl->SetLimitCheckEnable != NULL) {
 		Status = papi_func_tbl->SetLimitCheckEnable(
 			vl53l0_dev,
 			VL53L0_CHECKENABLE_SIGNAL_RATE_FINAL_RANGE,
 			 1);
+	}
 	} else {
 		vl53l0_errmsg(
 		"SetLimitCheckEnable(SIGMA_FINAL_RANGE) failed with errcode = %d\n",

@@ -1016,12 +1016,6 @@ static int tcs3430_probe(struct i2c_client *client,
 		}
 	}
 
-	if (!pdata) {
-		dev_err(dev, "%s: platform data required\n", __func__);
-		ret = -EINVAL;
-		goto init_failed;
-	}
-
 	if (!(pdata->als_name) || client->irq < 0) {
 		dev_err(dev, "%s: no reason to run.\n", __func__);
 		ret = -EINVAL;

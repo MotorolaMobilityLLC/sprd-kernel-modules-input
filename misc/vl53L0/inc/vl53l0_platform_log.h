@@ -119,7 +119,7 @@ void trace_print_module_function(uint32_t module, uint32_t level,
 	#define _LOG_FUNCTION_END_FMT(module, status, fmt, ...) (void)0
 #endif /* else */
 
-#define VL53L0_COPYSTRING(str, ...) strlcpy(str, ##__VA_ARGS__, sizeof(str))
+#define VL53L0_COPYSTRING(str, ...) strlcpy(str, ##__VA_ARGS__, strlen(str))
 
 
 #endif  /* _VL53L0_PLATFORM_LOG_H_ */

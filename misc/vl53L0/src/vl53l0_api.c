@@ -401,7 +401,7 @@ VL53L0_Error VL53L0_DataInit(VL53L0_DEV Dev)
 
 	/* Set I2C standard mode */
 	if (Status == VL53L0_ERROR_NONE)
-		Status = VL53L0_WrByte(Dev, 0x88, 0x00);
+		VL53L0_WrByte(Dev, 0x88, 0x00);
 
 	VL53L0_SETDEVICESPECIFICPARAMETER(Dev, ReadDataFromDeviceDone, 0);
 
@@ -798,7 +798,7 @@ VL53L0_Error VL53L0_ResetDevice(VL53L0_DEV Dev)
 	/* Wait for some time */
 	if (Status == VL53L0_ERROR_NONE) {
 		do {
-			Status = VL53L0_RdByte(Dev,
+			VL53L0_RdByte(Dev,
 			VL53L0_REG_IDENTIFICATION_MODEL_ID, &Byte);
 		} while (Byte != 0x00);
 	}
@@ -2290,7 +2290,7 @@ VL53L0_Error VL53L0_StartMeasurement(VL53L0_DEV Dev)
 	LOG_FUNCTION_START("");
 
 	/* Get Current DeviceMode */
-	VL53L0_GetDeviceMode(Dev, &DeviceMode);
+	Status = VL53L0_GetDeviceMode(Dev, &DeviceMode);
 
 	Status = VL53L0_WrByte(Dev, 0x80, 0x01);
 	Status = VL53L0_WrByte(Dev, 0xFF, 0x01);
