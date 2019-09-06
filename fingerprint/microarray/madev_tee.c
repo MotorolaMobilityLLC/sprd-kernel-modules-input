@@ -392,8 +392,8 @@ static int init_interrupt(struct platform_device *pdev)
 {
 	irq = mas_get_irq(pdev);
 	printk("MAFP_%s: mas_get_irq = %d\n", __func__, irq);
-	if (irq < 0) {
-		ret = irq;
+	if (!irq) {
+		ret = 1;
 		MALOGE("mas_get_irq");
 	}
 

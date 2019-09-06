@@ -15,7 +15,6 @@
 
 static int ret;
 static unsigned int int_gpio;
-static int rv;
 static struct device_node *node;
 static int en_gpio;
 
@@ -130,13 +129,13 @@ unsigned int mas_get_irq(struct platform_device *pdev)
 	status = gpio_request(int_gpio, "microarray_eint");
 	if (status < 0) {
 		MALOGE("gpio request error! ");
-		return rv;
+		return 0;
 	}
 	gpio_direction_input(int_gpio);
 	status = gpio_to_irq(int_gpio);
 	if (status < 0) {
 		MALOGE("gpio_to_irq failed\n");
-		return rv;
+		return 0;
 	}
 	return status;
 }
