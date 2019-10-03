@@ -473,10 +473,6 @@ static int lis2dh_acc_get_acceleration_data(struct lis2dh_acc_status *stat,
 	hw_d[1] = (((s16) ((acc_data[3] << 8) | acc_data[2])) >> 4);
 	hw_d[2] = (((s16) ((acc_data[5] << 8) | acc_data[4])) >> 4);
 
-	hw_d[0] = hw_d[0] * stat->sensitivity;
-	hw_d[1] = hw_d[1] * stat->sensitivity;
-	hw_d[2] = hw_d[2] * stat->sensitivity;
-
 	xyz[0] = ((stat->pdata->negate_x) ? (-hw_d[stat->pdata->axis_map_x])
 		   : (hw_d[stat->pdata->axis_map_x]));
 	xyz[1] = ((stat->pdata->negate_y) ? (-hw_d[stat->pdata->axis_map_y])
@@ -1081,7 +1077,7 @@ int lis2dh_acc_probe(struct lis2dh_acc_status *stat)
 
 	atomic_set(&stat->enabled, 1);
 
-	err = lis2dh_acc_update_fs_range(stat, stat->pdata->fs_range);
+	err = lis2dh_acc_update_fs_range(stat, LIS2DH_ACC_G_4G);
 	if (err < 0) {
 		lis2dh_err(stat->dev, "update_fs_range failed\n");
 		goto  err_power_off;
