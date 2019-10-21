@@ -2368,6 +2368,8 @@ rescan_pdt:
 					dev_err(&rmi4_data->i2c_client->dev,
 							"%s: Failed to check status\n",
 							__func__);
+					kfree(fhandler);
+					fhandler = NULL;
 					return retval;
 				}
 
@@ -2397,8 +2399,11 @@ rescan_pdt:
 
 				retval = synaptics_rmi4_f11_init(rmi4_data,
 						fhandler, &rmi_fd, intr_count);
-				if (retval < 0)
+				if (retval < 0) {
+					kfree(fhandler);
+					fhandler = NULL;
 					return retval;
+				}
 				break;
 			case SYNAPTICS_RMI4_F12:
 				if (rmi_fd.intr_src_count == 0)
@@ -2416,8 +2421,11 @@ rescan_pdt:
 
 				retval = synaptics_rmi4_f12_init(rmi4_data,
 						fhandler, &rmi_fd, intr_count);
-				if (retval < 0)
+				if (retval < 0) {
+					kfree(fhandler);
+					fhandler = NULL;
 					return retval;
+				}
 				break;
 			case SYNAPTICS_RMI4_F1A:
 				if (rmi_fd.intr_src_count == 0)
@@ -2436,12 +2444,9 @@ rescan_pdt:
 				retval = synaptics_rmi4_f1a_init(rmi4_data,
 						fhandler, &rmi_fd, intr_count);
 				if (retval < 0) {
-#ifdef IGNORE_FN_INIT_FAILURE
 					kfree(fhandler);
 					fhandler = NULL;
-#else
 					return retval;
-#endif
 				}
 				break;
 			}
@@ -2466,8 +2471,11 @@ flash_prog_mode:
 			rmi4_data->f01_query_base_addr,
 			f01_query,
 			sizeof(f01_query));
-	if (retval < 0)
+	if (retval < 0) {
+		kfree(fhandler);
+		fhandler = NULL;
 		return retval;
+	}
 
 	/* RMI Version 4.0 currently supported */
 	rmi->version_major = 4;
