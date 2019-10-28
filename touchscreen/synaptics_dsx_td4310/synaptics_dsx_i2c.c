@@ -3157,6 +3157,7 @@ static int synaptics_rmi4_probe(struct i2c_client *client,
 		const struct i2c_device_id *dev_id)
 {
 	int retval;
+	int attr_index;
 	unsigned char attr_count;
 	struct synaptics_rmi4_data *rmi4_data;
 	struct synaptics_dsx_platform_data *board;
@@ -3266,6 +3267,7 @@ static int synaptics_rmi4_probe(struct i2c_client *client,
 			&exp_data.work,
 			msecs_to_jiffies(EXP_FN_WORK_DELAY_MS));
 
+	attr_index = 0;
 	for (attr_count = 0; attr_count < ARRAY_SIZE(attrs); attr_count++) {
 		retval = sysfs_create_file(&rmi4_data->input_dev->dev.kobj,
 				&attrs[attr_count].attr);
@@ -3275,6 +3277,7 @@ static int synaptics_rmi4_probe(struct i2c_client *client,
 					__func__);
 			goto err_sysfs;
 		}
+		attr_index++;
 	}
 
 	retval = sysfs_create_group(&client->dev.kobj, &attr_group);
@@ -3300,7 +3303,7 @@ static int synaptics_rmi4_probe(struct i2c_client *client,
 err_sysfs:
 
 	sysfs_remove_group(&client->dev.kobj, &attr_group);
-	for (attr_count--; attr_count >= 0; attr_count--) {
+	for (attr_count = 0; attr_count < attr_index; attr_count++) {
 		sysfs_remove_file(&rmi4_data->input_dev->dev.kobj,
 				&attrs[attr_count].attr);
 	}
