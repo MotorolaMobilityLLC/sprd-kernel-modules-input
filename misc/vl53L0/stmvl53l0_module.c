@@ -1740,11 +1740,11 @@ static int stmvl53l0_ioctl_handler(struct file *file,
 					"Set Ref : Vhv:%u, PhaseCal:%u\n",
 					(uint8_t)parameter.value,
 					(uint8_t)parameter.value2);
-					parameter.status =
-					    papi_func_tbl->SetRefCalibration(
-					    vl53l0_dev,
-					    (uint8_t)(parameter.value),
-					    (uint8_t)(parameter.value2));
+				parameter.status =
+				  papi_func_tbl->SetRefCalibration(
+				  vl53l0_dev,
+				  (uint8_t)(parameter.value),
+				  (uint8_t)(parameter.value2));
 				data->VhvSettings = (uint8_t)parameter.value;
 				data->PhaseCal    = (uint8_t)(parameter.value2);
 			}
