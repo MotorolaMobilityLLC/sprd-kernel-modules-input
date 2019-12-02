@@ -5118,6 +5118,7 @@ static ssize_t bma2x2_register_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
 
+	int ret;
 	struct i2c_client *client = to_i2c_client(dev);
 	struct bma2x2_data *bma2x2 = i2c_get_clientdata(client);
 
@@ -5126,8 +5127,12 @@ static ssize_t bma2x2_register_show(struct device *dev,
 	int i;
 
 	for (i = 0; i < 0x40; i++) {
-		bma2x2_smbus_read_byte(bma2x2->bma2x2_client, i, reg+i);
-		count += sprintf(&buf[count], "0x%x: 0x%x\n", i, reg[i]);
+		ret = bma2x2_smbus_read_byte(bma2x2->bma2x2_client, i, reg+i);
+		if (!ret)
+			count += sprintf(&buf[count], "0x%x: 0x%x\n", i,
+					 reg[i]);
+		else
+			count += sprintf(&buf[count], "0x%x: /NA/\n", i);
 	}
 	return count;
 }
