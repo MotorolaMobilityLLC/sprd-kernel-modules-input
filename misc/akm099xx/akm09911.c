@@ -361,6 +361,7 @@ static ssize_t AKM099XX_value_show(struct device *dev, struct device_attribute *
 	ret = AKM099XX_read_xyz(akm, vec);
 	if (ret) {
 		dev_warn(&akm->i2c->dev, "read xyz failed\n");
+		return ret;
 	}
 
 	return sprintf(buf, "%d %d %d\n", vec[0], vec[1], vec[2]);
