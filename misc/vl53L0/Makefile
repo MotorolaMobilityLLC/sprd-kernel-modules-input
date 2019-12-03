@@ -1,32 +1,28 @@
+#
+# stmvl53l0.ko
+#
+# Makefile: for external make invocation
+#
+# Note:
+# - Please refer to modules/sample/Makefile to find out what should be
+#   done in this Makefile
+#
 
-LOCAL_PATH := $(PWD)
+KO_MODULE_NAME := stmvl53l0
+KO_MODULE_OUT := $(BSP_MODULES_OUT)/$(KO_MODULE_NAME)
+KO_MODULE_KBUILD := $(CURDIR)/Kbuild
 
-ccflags-y += -DDEBUG
-
-ccflags-y += -I$(LOCAL_PATH)/inc
-
-obj-m += stmvl53l0.o
-
-stmvl53l0-objs := stmvl53l0_module.o \
-                stmvl53l0_module-i2c.o \
-                stmvl53l0_module-cci.o \
-                src/vl53l0_api_calibration.o \
-                src/vl53l0_api_core.o \
-                src/vl53l0_api_histogram.o \
-                src/vl53l0_api_ranging.o \
-                src/vl53l0_api_strings.o \
-                src/vl53l0_api.o \
-                src/vl53l0_platform.o \
-                src/vl53l0_i2c_platform.o \
-                src/vl53l0_port_i2c.o
-
-.PHONY:modules
+.PHONY: modules modules_install clean
 
 modules:
-	$(MAKE) $(BSP_MAKE_EXTRA_ARGS) ARCH=$(BSP_BOARD_ARCH) CROSS_COMPILE=$(BSP_KERNEL_CROSS_COMPILE) -C $(BSP_KERNEL_PATH) O=$(BSP_KERNEL_OUT) M=`pwd` $@
+	@mkdir -p $(KO_MODULE_OUT) && ln -snf $(KO_MODULE_KBUILD) $(KO_MODULE_OUT)/Kbuild
+	@ln -snf $(CURDIR) $(KO_MODULE_OUT)/source
+	$(MAKE) -C $(BSP_KERNEL_PATH) M=$(KO_MODULE_OUT) src=$(CURDIR) $@
 
 modules_install:
-	$(MAKE) $(BSP_MAKE_EXTRA_ARGS) ARCH=$(BSP_BOARD_ARCH) CROSS_COMPILE=$(BSP_KERNEL_CROSS_COMPILE) -C $(BSP_KERNEL_PATH) O=$(BSP_KERNEL_OUT) M=`pwd` INSTALL_MOD_PATH=$(BSP_MODULES_OUT) $@
+	$(MAKE) -C $(BSP_KERNEL_PATH) M=$(KO_MODULE_OUT) $@
 
+# Remove the out directory wholly
 clean:
-	$(MAKE) -C $(BSP_KERNEL_PATH) O=$(BSP_KERNEL_OUT) M=`pwd` $@
+	@#$(MAKE) -C $(BSP_KERNEL_PATH) M=$(KO_MODULE_OUT) src=$(CURDIR) $@
+	rm -rf $(KO_MODULE_OUT)
