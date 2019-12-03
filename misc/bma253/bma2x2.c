@@ -4844,6 +4844,8 @@ static int bma2x2_read_accel_xyz(struct i2c_client *client,
 #endif
 	comres = bma2x2_smbus_read_byte_block(client,
 				BMA2X2_ACC_X12_LSB__REG, data, 6);
+	if (comres)
+		return comres;
 	if (sensor_type >= 4)
 		return -EINVAL;
 
@@ -5260,10 +5262,14 @@ static ssize_t bma2x2_value_show(struct device *dev,
 	struct bma2x2_data *bma2x2 = input_get_drvdata(input);
 	struct bma2x2acc acc_value;
 
-	bma2x2_read_accel_xyz(bma2x2->bma2x2_client, bma2x2->sensor_type,
-								&acc_value);
-	return sprintf(buf, "%d %d %d\n", acc_value.x, acc_value.y,
+	if (!(bma2x2_read_accel_xyz(bma2x2->bma2x2_client, bma2x2->sensor_type,
+		&acc_value)))
+		return sprintf(buf, "%d %d %d\n", acc_value.x, acc_value.y,
 			acc_value.z);
+	else {
+		LOG_INFO("bma2x2 read accel xyz error\n");
+		return -EINVAL;
+	}
 }
 
 static ssize_t bma2x2_delay_show(struct device *dev,
