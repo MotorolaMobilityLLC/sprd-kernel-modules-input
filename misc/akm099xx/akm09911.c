@@ -502,10 +502,11 @@ static int AKM099XX_probe(struct i2c_client *client, const struct i2c_device_id 
 		goto free_akm;
 	}
 
-	err = gpio_request(akm->gpio_reset, "magnetic_reset");
-	if (err) {
-	printk("gpio pin request fail (%d)\n", err);
-	err = -EINVAL;
+	res = devm_gpio_request(&client->dev, akm->gpio_reset, "magnetic_reset");
+	if (res) {
+		printk("gpio pin request fail (%d)\n", res);
+		res = -EINVAL;
+		goto free_akm;
 	}
 	gpio_direction_output(akm->gpio_reset, 0);
 	mdelay(1);
