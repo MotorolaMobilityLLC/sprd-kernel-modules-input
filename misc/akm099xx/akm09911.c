@@ -548,12 +548,15 @@ static int AKM099XX_probe(struct i2c_client *client, const struct i2c_device_id 
 	if (res) {
 		res = -EROFS;
 		dev_err(&client->dev, "Unable to creat sysfs group\n");
+		goto exit_sysfs_create_group_failed;
 	}
 
 	printk("AKM099XX successfully probed\n");
 
 	return 0;
 
+exit_sysfs_create_group_failed:
+	misc_deregister(&AKM099XX_device);
 exit_misc_device_register_failed:
 	input_unregister_device(akm->idev);
 free_akm:
