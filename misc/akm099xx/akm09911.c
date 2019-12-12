@@ -478,7 +478,6 @@ static int AKM099XX_probe(struct i2c_client *client, const struct i2c_device_id 
 {
 	int res = 0;
 	struct AKM099XX_data *akm;
-	int err = 0;
 
 	printk("akm probing AKM099XX 111 \n");
 
@@ -538,8 +537,8 @@ static int AKM099XX_probe(struct i2c_client *client, const struct i2c_device_id 
 		goto  free_akm;
 	}
 
-	err = misc_register(&AKM099XX_device);
-	if (err) {
+	res = misc_register(&AKM099XX_device);
+	if (res) {
 		printk(KERN_ERR "AKM099XX_device register failed\n");
 		goto exit_misc_device_register_failed;
 	}
