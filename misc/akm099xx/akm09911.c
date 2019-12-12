@@ -221,7 +221,7 @@ static struct input_dev *AKM099XX_init_input(struct AKM099XX_data *akm)
 	}
 	sched_setscheduler_nocheck(akm->thread, SCHED_FIFO, &param);
 
-	input = input_allocate_device();
+	input = devm_input_allocate_device(&akm->i2c->dev);
 	if (!input)
 		return NULL;
 
