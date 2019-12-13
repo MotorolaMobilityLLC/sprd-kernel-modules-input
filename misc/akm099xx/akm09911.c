@@ -222,9 +222,10 @@ static struct input_dev *AKM099XX_init_input(struct AKM099XX_data *akm)
 	sched_setscheduler_nocheck(akm->thread, SCHED_FIFO, &param);
 
 	input = devm_input_allocate_device(&akm->i2c->dev);
-	if (!input)
+	if (!input) {
+		kthread_stop(akm->thread);
 		return NULL;
-
+	}
 	input->name = "compass";
 	input->phys = "AKM099XX/input0";
 	input->id.bustype = BUS_I2C;
@@ -246,6 +247,7 @@ static struct input_dev *AKM099XX_init_input(struct AKM099XX_data *akm)
 	status = input_register_device(input);
 	if (status) {
 		dev_err(&akm->i2c->dev, "error registering input device\n");
+		kthread_stop(akm->thread);
 		return NULL;
 	}
 
@@ -558,6 +560,7 @@ static int AKM099XX_probe(struct i2c_client *client, const struct i2c_device_id 
 exit_sysfs_create_group_failed:
 	misc_deregister(&AKM099XX_device);
 exit_misc_device_register_failed:
+	kthread_stop(akm->thread);
 	input_unregister_device(akm->idev);
 free_akm:
 out:
