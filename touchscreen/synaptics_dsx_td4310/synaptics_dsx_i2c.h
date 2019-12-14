@@ -84,9 +84,8 @@ extern unsigned char g_log_enable;
 
 #define F12_GESTURE_DETECTION_LEN 5
 
-
 #define MAX_NUMBER_OF_BUTTONS 4
-#define MAX_INTR_REGISTERS 4
+#define MAX_INTR_REGISTERS 8
 
 #define MASK_16BIT 0xFFFF
 #define MASK_8BIT 0xFF
