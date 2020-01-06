@@ -6653,11 +6653,17 @@ static int bma2x2_probe(struct i2c_client *client,
 	if (IS_ERR(thread)) {
 		err = PTR_ERR(thread);
 		LOG_ERR("failed to create kernel thread: %d\n", err);
+		goto bst_free_exit;
 	}
 #endif
 	/* bma253 default mode is normal mode */
-	if (bma2x2_set_mode(client, BMA2X2_MODE_SUSPEND, BMA_ENABLED_ALL) < 0)
-		return -EINVAL;
+	if (bma2x2_set_mode(client, BMA2X2_MODE_SUSPEND, BMA_ENABLED_ALL) < 0) {
+#ifdef BMA_ENABLE_NEWDATA_INT
+		kthread_stop(thread);
+#endif
+		err = -EINVAL;
+		goto bst_free_exit;
+	}
 	LOG_INFO("BMA2x2 driver probe successfully\n");
 	return 0;
 
@@ -6700,6 +6706,9 @@ static int bma2x2_remove(struct i2c_client *client)
 		return 0;
 
 	bma2x2_set_enable(&client->dev, 0);
+#ifdef BMA_ENABLE_NEWDATA_INT
+	kthread_stop(thread);
+#endif
 	sysfs_remove_group(&data->input->dev.kobj, &bma2x2_attribute_group);
 	input_unregister_device(data->input);
 
