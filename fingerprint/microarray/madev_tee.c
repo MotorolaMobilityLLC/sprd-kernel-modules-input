@@ -29,7 +29,7 @@ static struct spi_device *ma_spi_t;
 static DECLARE_WAIT_QUEUE_HEAD(gWaitq);
 static DECLARE_WAIT_QUEUE_HEAD(U1_Waitq);
 static DECLARE_WAIT_QUEUE_HEAD(U2_Waitq);
-struct wakeup_source gProcessWakeLock;
+struct wakeup_source *gProcessWakeLock;
 struct work_struct gWork;
 struct workqueue_struct *gWorkq;
 static struct fprint_dev *sdev;
@@ -47,7 +47,7 @@ static unsigned int g_factory_flag;
 static void mas_work(struct work_struct *pws)
 {
 	irq_flag = 1;
-	__pm_wakeup_event(&gProcessWakeLock, jiffies_to_msecs(2*HZ));
+	__pm_wakeup_event(gProcessWakeLock, jiffies_to_msecs(2*HZ));
 	wake_up(&gWaitq);
 }
 
@@ -109,7 +109,7 @@ static long mas_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 
 	switch (cmd) {
 	case MA_IOC_DELK:
-		__pm_wakeup_event(&gProcessWakeLock, jiffies_to_msecs(5*HZ));
+		__pm_wakeup_event(gProcessWakeLock, jiffies_to_msecs(5*HZ));
 		break;
 	case MA_IOC_SLEP:
 		irq_flag = 0;
@@ -412,7 +412,12 @@ static int init_vars(void)
 		MALOGE("malloc sdev space failed!\n");
 	}
 	ma_drv_reg = 0;
-	wakeup_source_init(&gProcessWakeLock, "microarray_process_wakelock");
+//	wakeup_source_init(&gProcessWakeLock, "microarray_process_wakelock");
+	gProcessWakeLock = wakeup_source_register(NULL, "microarray_process_wakelock");
+	if (!gProcessWakeLock) {
+		return -ENOMEM;
+	}
+
 	INIT_WORK(&gWork, mas_work);
 	gWorkq = create_singlethread_workqueue("mas_workqueue");
 	if (!gWorkq) {
@@ -424,7 +429,8 @@ static int init_vars(void)
 static int deinit_vars(void)
 {
 	destroy_workqueue(gWorkq);
-	wakeup_source_trash(&gProcessWakeLock);
+//	wakeup_source_trash(&gProcessWakeLock);
+	wakeup_source_unregister(gProcessWakeLock);
 	return 0;
 }
 
