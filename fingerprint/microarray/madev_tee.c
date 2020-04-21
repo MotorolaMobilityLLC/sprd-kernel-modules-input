@@ -428,9 +428,15 @@ static int init_vars(void)
 }
 static int deinit_vars(void)
 {
-	destroy_workqueue(gWorkq);
+	if (gWorkq) {
+		destroy_workqueue(gWorkq);
+		gWorkq = NULL;
+	}
 //	wakeup_source_trash(&gProcessWakeLock);
-	wakeup_source_unregister(gProcessWakeLock);
+	if (gProcessWakeLock) {
+		wakeup_source_unregister(gProcessWakeLock);
+		gProcessWakeLock = NULL;
+	}
 	return 0;
 }
 
