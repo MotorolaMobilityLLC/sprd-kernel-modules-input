@@ -390,6 +390,7 @@ static int ts_request_gpio(struct ts_data *pdata)
 	return 0;
 }
 
+#ifdef CONFIG_GPIO_SYSFS
 static int ts_export_gpio(struct ts_data *pdata)
 {
 	int retval;
@@ -418,6 +419,7 @@ static int ts_export_gpio(struct ts_data *pdata)
 
 	return 0;
 }
+#endif
 
 struct ts_firmware_upgrade_param {
 	struct ts_data *pdata;
@@ -1712,12 +1714,14 @@ static int ts_probe(struct platform_device *pdev)
 		return retval;
 	}
 
+#ifdef CONFIG_GPIO_SYSFS
 	/* export GPIO for debug use */
 	retval = ts_export_gpio(pdata);
 	if (retval) {
 		dev_err(dev, "failed to export gpio");
 		return retval;
 	}
+#endif
 
 	/* then we find which controller to use */
 	pdata->controller = ts_match_controller(pdata->board->controller);
@@ -1803,7 +1807,7 @@ static int ts_probe(struct platform_device *pdev)
 	if (retval < 0)
 		dev_err(dev, "error in register external event!");
 
-	dev_info(dev, "ts platform device probe OK");
+	pr_info("ts platform device probe OK");
 	wakeup_source_add(&pdata->upgrade_lock);
 	return 0;
 }

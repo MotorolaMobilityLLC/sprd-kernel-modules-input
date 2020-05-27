@@ -35,48 +35,6 @@ static unsigned short lcd_width;
 static unsigned short lcd_height;
 static bool cali;
 
-int ts_i2c_init(struct device_node *, unsigned short *);
-void ts_i2c_exit(void);
-
-#if 0
-static int ts_parse_lcd_size(char *str)
-{
-	char *c, buf[32] = { 0 };
-	int length;
-
-	if (str != NULL) {
-		c = strchr(str, 'x');
-		if (c != NULL) {
-			/* height */
-			length = c - str;
-			strncpy(buf, str, length);
-			if (kstrtou16(buf, 10, &lcd_height))
-				lcd_height = 0;
-			/* width */
-			length = strlen(str) - (c - str) - 1;
-			strncpy(buf, c + 1, length);
-			buf[length] = '\0';
-			if (kstrtou16(buf, 10, &lcd_width))
-				lcd_width = 0;
-		} else {
-			lcd_width = lcd_height = 0;
-		}
-	}
-	return 1;
-}
-__setup("lcd_size=", ts_parse_lcd_size);
-
-static int ts_parse_cali_mode(char *str)
-{
-	if (str != NULL && !strncmp(str, "cali", strlen("cali")))
-		cali = true;
-	else
-		cali = false;
-	return 0;
-}
-__setup("androidboot.mode=", ts_parse_cali_mode);
-#endif
-
 /* parse key name using key code */
 struct ts_virtualkey_pair VIRTUALKEY_PAIRS[] = {
 	{
@@ -177,7 +135,6 @@ int ts_register_controller(struct ts_controller *controller)
 				controller->vendor, controller->name);
 		return 0;
 }
-EXPORT_SYMBOL(ts_register_controller);
 
 void ts_unregister_controller(struct ts_controller *controller)
 {
@@ -205,7 +162,6 @@ void ts_unregister_controller(struct ts_controller *controller)
 				pr_warn("controller \"%s-%s\" not found.",
 						controller->vendor, controller->name);
 }
-EXPORT_SYMBOL(ts_unregister_controller);
 
 /*
  * matches one controller by name or adaptively
@@ -271,7 +227,6 @@ struct ts_controller *ts_match_controller(const char *name)
 
 	return target;
 }
-EXPORT_SYMBOL(ts_match_controller);
 
 int ts_read(unsigned char *data, unsigned short length)
 {
@@ -282,7 +237,6 @@ int ts_read(unsigned char *data, unsigned short length)
 
 	return g_board->bus->simple_read(data, length);
 }
-EXPORT_SYMBOL(ts_read);
 
 int ts_write(unsigned char *data, unsigned short length)
 {
@@ -293,7 +247,6 @@ int ts_write(unsigned char *data, unsigned short length)
 
 	return g_board->bus->simple_write(data, length);
 }
-EXPORT_SYMBOL(ts_write);
 
 int ts_reg_read(unsigned short reg, unsigned char *data, unsigned short length)
 {
@@ -304,7 +257,6 @@ int ts_reg_read(unsigned short reg, unsigned char *data, unsigned short length)
 
 	return g_board->bus->read(reg, data, length);
 }
-EXPORT_SYMBOL(ts_reg_read);
 
 int ts_reg_write(unsigned short reg, unsigned char *data, unsigned short length)
 {
@@ -315,7 +267,6 @@ int ts_reg_write(unsigned short reg, unsigned char *data, unsigned short length)
 
 	return g_board->bus->write(reg, data, length);
 }
-EXPORT_SYMBOL(ts_reg_write);
 
 /* GPIO operation */
 int ts_gpio_get(enum ts_gpio type)
@@ -342,7 +293,6 @@ int ts_gpio_get(enum ts_gpio type)
 
 	return val;
 }
-EXPORT_SYMBOL(ts_gpio_get);
 
 void ts_gpio_set(enum ts_gpio type, int level)
 {
@@ -361,7 +311,6 @@ void ts_gpio_set(enum ts_gpio type, int level)
 		pr_warn("Unrecognized gpio type, ignore.\n");
 	}
 }
-EXPORT_SYMBOL(ts_gpio_set);
 
 int ts_gpio_input(enum ts_gpio type)
 {
@@ -391,7 +340,6 @@ int ts_gpio_input(enum ts_gpio type)
 
 	return retval;
 }
-EXPORT_SYMBOL(ts_gpio_input);
 
 int ts_gpio_output(enum ts_gpio type, int level)
 {
@@ -423,7 +371,6 @@ int ts_gpio_output(enum ts_gpio type, int level)
 
 	return retval;
 }
-EXPORT_SYMBOL(ts_gpio_output);
 
 /*
  * parse .dts file to get following info:
@@ -444,13 +391,11 @@ static struct ts_board *ts_parse_dt(struct device_node *pn)
 	size_t size = sizeof(struct ts_board);
 
 	rst = of_get_gpio(pn, TS_RST_INDEX);
-	rst = 145;
 	if (rst < 0) {
 		pr_err("invalid reset gpio number: %d\n", rst);
 		return NULL;
 	}
 	irq = of_get_gpio(pn, TS_INT_INDEX);
-	irq = 144;
 	if (irq < 0) {
 		pr_err("invalid irq gpio number: %d\n", irq);
 		return NULL;
@@ -607,7 +552,6 @@ int ts_register_bus_dev(struct device *parent)
 	pr_debug("succeed to register platform device.");
 	return 0;
 }
-EXPORT_SYMBOL(ts_register_bus_dev);
 
 void ts_unregister_bus_dev(void)
 {
@@ -617,7 +561,6 @@ void ts_unregister_bus_dev(void)
 		platform_device_unregister(board->pdev);
 	board->pdev = NULL;
 }
-EXPORT_SYMBOL(ts_unregister_bus_dev);
 
 /* initialize bus device according to node type */
 static enum ts_bustype ts_bus_init(struct device_node *bus_node, bool adaptive)
@@ -641,7 +584,6 @@ static enum ts_bustype ts_bus_init(struct device_node *bus_node, bool adaptive)
 	} else {
 		pr_warn("unknown bus type: \"%s\"", bus_node->name);
 	}
-
 	return TSBUS_NONE;
 }
 
@@ -677,10 +619,9 @@ int ts_board_init(void)
 		return -ENODEV;
 	}
 
-	pr_debug("board init OK, bus type is %d.", bus_type);
+	pr_debug("board init OK, bus type is %d.\n", bus_type);
 	return 0;
 }
-EXPORT_SYMBOL(ts_board_init);
 
 void ts_board_exit(void)
 {
@@ -700,7 +641,6 @@ void ts_board_exit(void)
 	kfree(board);
 	g_board = NULL;
 }
-EXPORT_SYMBOL(ts_board_exit);
 
 MODULE_AUTHOR("joseph.cai@spreadtrum.com");
 MODULE_DESCRIPTION("Spreadtrum touchscreen controller loader");

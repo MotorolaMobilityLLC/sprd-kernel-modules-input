@@ -245,34 +245,34 @@ struct ts_data {
 /*
  * initialize I2C device
  */
-extern int ts_i2c_init(struct device_node *, unsigned short *);
-extern void ts_i2c_exit(void);
+int ts_i2c_init(struct device_node *, unsigned short *);
+void ts_i2c_exit(void);
 
 /*
  * initialize board settings
  */
-extern int ts_board_init(void);
-extern void ts_board_exit(void);
-extern int focaltech_init(void);
-extern void focaltech_exit(void);
+int ts_board_init(void);
+void ts_board_exit(void);
+int focaltech_init(void);
+void focaltech_exit(void);
 
 /*
  * register bus device to board settings
  */
-extern int ts_register_bus_dev(struct device *);
-extern void ts_unregister_bus_dev(void);
+int ts_register_bus_dev(struct device *);
+void ts_unregister_bus_dev(void);
 
 /*
  * handler from core module to handle our inner events
  */
 typedef void (*event_handler_t)(struct ts_data *, enum ts_event, void *);
-extern int ts_register_ext_event_handler(struct ts_data *, event_handler_t);
-extern void ts_unregister_ext_event_handler(void);
+int ts_register_ext_event_handler(struct ts_data *, event_handler_t);
+void ts_unregister_ext_event_handler(void);
 
 /*
  * match controller from name, if no name provided, choose a controller
  */
-extern struct ts_controller *ts_match_controller(const char *);
+struct ts_controller *ts_match_controller(const char *);
 
 /*
  * transform keycode to key name
