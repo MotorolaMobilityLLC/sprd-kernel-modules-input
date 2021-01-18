@@ -15,8 +15,8 @@
 //#define SUPPORT_TOUCH_RESET_PIN_CTL
 
 #define SUPPORT_BOOTUP_FW_UPGRADE_HEADER
-#define SUPPORT_BOOTUP_FW_UPGRADE_BINFILE
-#define SUPPORT_BOOTUP_FORCE_FW_UPGRADE_BINFILE
+//#define SUPPORT_BOOTUP_FW_UPGRADE_BINFILE
+//#define SUPPORT_BOOTUP_FORCE_FW_UPGRADE_BINFILE
 
 #define SUPPORT_ES2			/* for SSD20xx ES2 */
 #define SUPPORT_PROTOCOL_6BYTES		/* for 6bytes point protocol */
@@ -32,7 +32,6 @@
 #define SUPPORT_LPM			/* for support of LPM */
 
 /* For ESD checksum. only Status & Length and point info */
-#define SUPPORT_ESD_CHECKSUM
 #define SUPPORT_AUX			/* for support of AUX bit of SnL */
 #define SUPPORT_KEY_BUTTON		/* for key H/W button */
 
@@ -238,7 +237,7 @@ ssize_t ssdDrvMainProcfsGestureWakeupModeWrite(struct file *pFile, const char __
  *-----------------------------------------------------
  */
 /* Support ESD Timer when value is 1. */
-#define ESD_TIMER_ENABLE		1
+#define ESD_TIMER_ENABLE		0
 
 #define	SOLOMON_ESD_INTERVAL		1
 #define SOLOMON_SCAN_RATE_HZ		60
@@ -426,7 +425,7 @@ int solomon_resume_ex(void);
  *-----------------------------------------------------
  */
 #define SUPPORT_TEST_MODE
-
+#define SUPPORT_DEBUG_MODE		0
 #define CONTENT_HEADER_SIZE		12		/* bytes */
 
 #define FW_MAX_RETRY_COUNT		3

@@ -868,6 +868,7 @@ update:
 /* Update using F/W file. */
 int solomon_firmware_update_byfile(struct solomon_device *dev, char *filename)
 {
+#if SUPPORT_DEBUG_MODE
 	int errnum = 0;
 	int retry = FW_MAX_RETRY_COUNT;
 	struct solomon_fw_group_header fw_header_tmp;
@@ -894,7 +895,6 @@ int solomon_firmware_update_byfile(struct solomon_device *dev, char *filename)
 	}
 
 	fw_size = src->f_path.dentry->d_inode->i_size;
-
 	if (fw_size > 0) {
 		fw_data = kzalloc(fw_size, GFP_KERNEL);
 		read_size = vfs_read(src, (char __user *)fw_data, fw_size,
@@ -940,6 +940,8 @@ int solomon_firmware_update_byfile(struct solomon_device *dev, char *filename)
 	}
 	SOLOMON_TIME("E91");
 	return errnum;
+#endif
+	return 0;
 }
 
 int solomon_get_version_boot(struct solomon_device *dev)
@@ -1033,6 +1035,7 @@ int solomon_firmware_pre_boot_up_check_head(struct solomon_device *dev)
 	return err;
 }
 
+#if SUPPORT_DEBUG_MODE
 /* for furture, It is not used yet. */
 int solomon_firmware_check(struct solomon_device *dev, char *filename)
 {
@@ -1084,3 +1087,4 @@ header:
 out:
 	return errnum;
 }
+#endif

@@ -190,7 +190,7 @@ int ds16_seeprom_readid(struct solomon_device *dev, int *id)
 {
 	int err = 0;
 	unsigned char ws_wd[10];
-	unsigned char rs_wd[10];
+	unsigned char rs_wd[10] = {0};
 	int ws_wd_nbyte = 0;
 
 	/* WS_WD */
@@ -401,7 +401,7 @@ int ds16_seeprom_wait_bsyclr(struct solomon_device *dev)
 {
 	int err = 0;
 	unsigned int n;
-	unsigned int rd;
+	unsigned int rd = 0;
 
 	/* BUSY check */
 	for (n = 0; n < 5000; n++) {
@@ -848,11 +848,11 @@ int ds16_seeprom_verify(struct solomon_device *dev, struct solomon_fw *fw)
 	int i = 0;
 	u8 *verify_data = NULL;
 
-	SOLOMON_WARNNING("START VERIFY (address : 0x%08x) >>>>", fw->address);
 	if (fw == NULL) {
 		SOLOMON_WARNNING("pointer for verify is NULL!!");
 		return -1;
 	}
+	SOLOMON_WARNNING("START VERIFY (address : 0x%08x) >>>>", fw->address);
 
 	verify_data = kmalloc(fw->byte_cnt+2, GFP_KERNEL);
 
