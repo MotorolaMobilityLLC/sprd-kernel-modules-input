@@ -84,7 +84,7 @@ static int LTR_PLS_MODE;
 
 static int ltr558_reg_init(void);
 //static struct wake_lock psensor_timeout_wakelock;
-static struct wakeup_source ws;
+static struct wakeup_source *ws;
 #define WAKELOCK_TIMEOUT_INT_MS 50
 #define WAKELOCK_TIMEOUT_WORK_MS 500
 /*param tab*/
@@ -612,7 +612,7 @@ static void ltr558_work(struct work_struct *work)
 				}
 			}
 			/* wake lock only when report 1 */
-			__pm_wakeup_event(&ws, msecs_to_jiffies(WAKELOCK_TIMEOUT_WORK_MS));
+			__pm_wakeup_event(ws, msecs_to_jiffies(WAKELOCK_TIMEOUT_WORK_MS));
 			ltr558_i2c_write_2_bytes(LTR558_PS_THRES_UP, ps_threshold_high);
 			ltr558_i2c_write_2_bytes(LTR558_PS_THRES_LOW, 0x0000);
 			input_report_abs(pls->input, ABS_DISTANCE, 1);
@@ -642,7 +642,7 @@ static void ltr558_work(struct work_struct *work)
 				}
 			}
 			/* wake lock only when report 1 */
-			__pm_wakeup_event(&ws, msecs_to_jiffies(WAKELOCK_TIMEOUT_WORK_MS));
+			__pm_wakeup_event(ws, msecs_to_jiffies(WAKELOCK_TIMEOUT_WORK_MS));
 
 			ltr558_i2c_write_2_bytes(LTR558_PS_THRES_UP, ps_threshold_high);
 			ltr558_i2c_write_2_bytes(LTR558_PS_THRES_LOW, 0x0000);
@@ -669,7 +669,7 @@ static irqreturn_t ltr558_irq_handler(int irq, void *dev_id)
 	ltr558_t *pls = (ltr558_t *) dev_id;
 
 	/* PRINT_INFO("irq handler\n"); */
-	__pm_wakeup_event(&ws, msecs_to_jiffies(WAKELOCK_TIMEOUT_INT_MS));
+	__pm_wakeup_event(ws, msecs_to_jiffies(WAKELOCK_TIMEOUT_INT_MS));
 	disable_irq_nosync(pls->client->irq);
 	queue_work(pls->ltr_work_queue, &pls->work);
 	return IRQ_HANDLED;
@@ -1050,7 +1050,8 @@ static int ltr558_probe(struct i2c_client *client, const struct i2c_device_id *i
 		PRINT_ERR("create_singlethread_workqueue failed!\n");
 		goto exit_create_singlethread_workqueue_failed;
 	}
-	wakeup_source_init(&ws, "psensor timeout wakelock");
+	wakeup_source_create("psensor timeout wakelock");
+	wakeup_source_add(ws);
 	if (client->irq > 0) {
 		/* irq may missed if edge falling when als/ps are both enable */
 		ret = request_irq(client->irq, ltr558_irq_handler,
@@ -1086,7 +1087,8 @@ exit_ltr_558als_sysfs_init_failed:
 exit_request_irq_failed:
 	destroy_workqueue(ltr_558als->ltr_work_queue);
 	ltr_558als->ltr_work_queue = NULL;
-	wakeup_source_trash(&ws);
+	wakeup_source_remove(ws);
+	wakeup_source_destroy(ws);
 exit_create_singlethread_workqueue_failed:
 exit_ltr558_version_check_failed:
 exit_ltr558_reg_init_failed:
@@ -1112,7 +1114,8 @@ static int ltr558_remove(struct i2c_client *client)
 {
 	ltr558_t *ltr_558als = i2c_get_clientdata(client);
 
-	wakeup_source_trash(&ws);
+	wakeup_source_remove(ws);
+	wakeup_source_destroy(ws);
 	flush_workqueue(ltr_558als->ltr_work_queue);
 	destroy_workqueue(ltr_558als->ltr_work_queue);
 	ltr_558als->ltr_work_queue = NULL;

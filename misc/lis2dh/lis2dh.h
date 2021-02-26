@@ -1,12 +1,12 @@
-
-/******************** (C) COPYRIGHT 2016 STMicroelectronics ********************
+/******************** (C) COPYRIGHT 2020 Unisoc Communications Inc. ************
 *
-* File Name	: lis2dh_acc.h
-* Authors	: AMS-Motion Mems Division-Application Team-Application Team
-*		     : Matteo Dameno (matteo.dameno@st.com)
-*		     : Mario Tesi <mario.tesi@st.com>
-* Version	: V.1.0.14
-* Date		: 2016/Apr/26
+* File Name     : lis2dh.h
+* Authors       : Drive and Tools Technical Resources Department-Sensor_SH Team
+*                   : Tianmin.Yang (tianmin.yang@unisoc.com)
+*
+* Version       : V.0.0.1
+* Date          : 2020/Sep/04
+* Description   : Header file of LIS2DH accelerometer driver code 
 *
 ********************************************************************************
 *
@@ -17,7 +17,7 @@
 * THE PRESENT SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES
 * OR CONDITIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED, FOR THE SOLE
 * PURPOSE TO SUPPORT YOUR APPLICATION DEVELOPMENT.
-* AS A RESULT, STMICROELECTRONICS SHALL NOT BE HELD LIABLE FOR ANY DIRECT,
+* AS A RESULT, Unisoc SHALL NOT BE HELD LIABLE FOR ANY DIRECT,
 * INDIRECT OR CONSEQUENTIAL DAMAGES WITH RESPECT TO ANY CLAIMS ARISING FROM THE
 * CONTENT OF SUCH SOFTWARE AND/OR THE USE MADE BY CUSTOMERS OF THE CODING
 * INFORMATION CONTAINED HEREIN IN CONNECTION WITH THEIR PRODUCTS.
@@ -26,140 +26,107 @@
 /*******************************************************************************
 *Version History.
 *
-* Revision 1.0.10: 2011/Aug/16
+* Revision 0.0.1: 2020/Sep/04
+* first revision
 *
-* Revision 1.0.11: 2012/Jan/09
-*  moved under input/misc
-* Revision 1.0.12: 2012/Feb/29
-*  moved use_smbus inside status struct; modified:-update_fs_range;-set_range
-*  input format; allows gpio_intX to be passed as parameter at insmod time;
-*  renamed field g_range to fs_range in lis2dh_acc_platform_data;
-*  replaced defines SA0L and SA0H with LIS2DH_SAD0x
-* Revision 1.0.13: 2013/Feb/25
-*  modified acc_remove function;
-* Revision 1.0.14: 2016/Apr/26
-*  added new i2c and spi interface
 *******************************************************************************/
+#ifndef __LIS2DH_H__
+#define __LIS2DH_H__
+
+#include <linux/ioctl.h>
 #include <linux/i2c.h>
-#include <linux/spi/spi.h>
 
-#ifndef	__LIS2DH_H__
-#define	__LIS2DH_H__
+#define DEF_VAL                          0
+#define SEC                              1000
 
-/* Uncomment if want enable/disable on open/close input device */
-/* #define LIS2DH_EN_OPEN_CLOSE */
+#define LOW_POWER_MODE                   1
+#define NORMAL_MODE                      2
+#define HIGH_RESOLUTION_MODE             3
+#define POWER_DOWN_MODE                  4
 
-#define	LIS2DH_ACC_DEV_NAME		"accelerometer"
+struct lis2dh_data {
+         struct i2c_client *lis2dh_client;
+         u8 *name;
+         u8 chip_id;
+         u8 fs_range;
+         u8 operating_mode;
+         int odr;
+         int poll_interval;
+         struct lis2dh_acc {
+                 int x;
+                 int y;
+                 int z;
+         } value;
+         atomic_t enable;
+         struct mutex lock;
+         int64_t timestamp;
+         ktime_t ktime;
+         struct input_dev *input_dev;
+         struct device *dev;
 
-#define	LIS2DH_ACC_MIN_POLL_PERIOD_MS	1
+         struct work_struct report_data_work;
+         struct workqueue_struct *acc_workqueue;
+         struct hrtimer hr_timer;
+         int on_before_suspend;
+ };
 
-#ifdef __KERNEL__
-
-#define LIS2DH_SAD0L			0x00
-#define LIS2DH_SAD0H			0x01
-
-#define LIS2DH_ACC_DEFAULT_INT1_GPIO	(-EINVAL)
-#define LIS2DH_ACC_DEFAULT_INT2_GPIO	(-EINVAL)
-
-/* Accelerometer Sensor Full Scale */
-#define	LIS2DH_ACC_FS_MASK		0x30
-#define LIS2DH_ACC_G_2G			0x00
-#define LIS2DH_ACC_G_4G			0x10
-#define LIS2DH_ACC_G_8G			0x20
-#define LIS2DH_ACC_G_16G		0x30
-
-#define BUFF_RX_MAX_LENGTH		500
-#define BUFF_TX_MAX_LENGTH		500
-
-#define	RESUME_ENTRIES			17
-
-struct lis2dh_acc_status;
-
-struct lis2dh_acc_platform_data {
-	unsigned int poll_interval;
-	unsigned int min_interval;
-
-	u8 fs_range;
-
-	u8 axis_map_x;
-	u8 axis_map_y;
-	u8 axis_map_z;
-
-	u8 negate_x;
-	u8 negate_y;
-	u8 negate_z;
-
-	int (*init)(void);
-	void (*exit)(void);
-	int (*power_on)(void);
-	int (*power_off)(void);
-
-	/* set gpio_int[1,2] either to the chosen gpio pin number or to -EINVAL
-	 * if leaved unconnected
-	 */
-	int gpio_int1;
-	int gpio_int2;
+struct odr_param {
+         int odr;
+         int interval_ms;
+} odr_parame_table[] = {
+         {1, (SEC/1)},       /* 1000ms */
+         {10, (SEC/10)},     /* 100ms */
+         {25, (SEC/25)},     /* 40ms */
+         {50, (SEC/50)},     /* 20ms */
+         {100, (SEC/100)},   /* 10ms */
+         {200, (SEC/200)},   /* 5ms */
+         {400, (SEC/400)}    /* 2ms */
 };
 
-struct lis2dh_acc_transfer_buffer {
-	struct mutex buf_lock;
-	u8 rx_buf[BUFF_RX_MAX_LENGTH];
-	u8 tx_buf[BUFF_TX_MAX_LENGTH] ____cacheline_aligned;
+struct reg_param {
+         int label;           /*label = DEF_VAL when it is no need to use*/
+         u8 reg_addr;
+         u8 reg_value;
+         u8 mask;
 };
 
-/* specific bus I/O functions */
-struct lis2dh_acc_transfer_function {
-	int (*write)(struct lis2dh_acc_status *stat, u8 reg_addr, int len,
-		     u8 *data);
-	int (*read)(struct lis2dh_acc_status *stat, u8 reg_addr, int len,
-		    u8 *data);
+struct reg_param chip_id = {
+         DEF_VAL, 0x0f, 0x33, 0xff};
+
+struct reg_param range_arry[] = {
+         {2, 0x23, 0x00, 0x30},      /*2G*/
+         {4, 0x23, 0x10, 0x30},      /*4G*/
+         {8, 0x23, 0x20, 0x30},      /*8G*/
+         {16, 0x23, 0x30, 0x30}       /*16G*/
 };
 
-struct lis2dh_acc_status {
-	const char *name;
-	struct lis2dh_acc_platform_data *pdata;
-
-	struct mutex lock;
-	struct workqueue_struct *acc_workqueue;
-	struct input_dev *input_dev;
-	int64_t timestamp;
-
-	int hw_initialized;
-	int hw_working;
-	atomic_t enabled;
-	int on_before_suspend;
-	struct device *dev;
-	u16 bustype;
-	u8 sensitivity;
-
-	struct hrtimer hr_timer;
-	ktime_t ktime;
-	struct work_struct polling_task;
-
-	u8 resume_state[RESUME_ENTRIES];
-
-	struct lis2dh_acc_transfer_function *tf;
-	struct lis2dh_acc_transfer_buffer tb;
+struct reg_param odr_array[] = {
+         {1, 0x20, 0x10, 0xf0},      /*1Hz*/
+         {10, 0x20, 0x20, 0xf0},      /*10Hz*/
+         {25, 0x20, 0x30, 0xf0},      /*25Hz*/
+         {50, 0x20, 0x40, 0xf0},      /*50Hz*/
+         {100, 0x20, 0x50, 0xf0},      /*100Hz*/
+         {200, 0x20, 0x60, 0xf0},      /*200Hz*/
+         {400, 0x20, 0x70, 0xf0}       /*400Hz*/
 };
 
-/* Input events used by lis2dh driver */
-#define INPUT_EVENT_TYPE		EV_MSC
-#define INPUT_EVENT_X			MSC_SERIAL
-#define INPUT_EVENT_Y			MSC_PULSELED
-#define INPUT_EVENT_Z			MSC_GESTURE
-#define INPUT_EVENT_TIME_MSB		MSC_SCAN
-#define INPUT_EVENT_TIME_LSB		MSC_MAX
+struct reg_param mode_array[] = {
+         {LOW_POWER_MODE, 0x20, 0x08, 0x08},
+         {LOW_POWER_MODE, 0x23, 0x00, 0x08},
+         {NORMAL_MODE, 0x20, 0x00, 0x08},
+         {NORMAL_MODE, 0x23, 0x00, 0x08},
+         {HIGH_RESOLUTION_MODE, 0x20, 0x00, 0x08},
+         {HIGH_RESOLUTION_MODE, 0x23, 0x08, 0x08},
+         {POWER_DOWN_MODE, 0x20, 0x00, 0xf0}
+};
 
-int lis2dh_acc_probe(struct lis2dh_acc_status *stat);
-int lis2dh_acc_remove(struct lis2dh_acc_status *stat);
-
-#ifdef CONFIG_PM
-#ifdef CONFIG_SUSPEND
-int lis2dh_acc_common_resume(struct lis2dh_acc_status *stat);
-int lis2dh_acc_common_suspend(struct lis2dh_acc_status *stat);
-#endif /* CONFIG_SUSPEND */
-#endif /* CONFIG_PM */
-
-#endif	/* __KERNEL__ */
-
-#endif	/* __LIS2DH_H__ */
+struct reg_param init_array[] = {
+         {DEF_VAL, 0x20, 0x07, 0x07},                    /*enable xyz*/
+         {DEF_VAL, 0x23, 0x00, 0x80},                    /*continuos update*/
+         {DEF_VAL, 0x23, 0x00, 0x06},                    /*self test disabled*/
+         {HIGH_RESOLUTION_MODE, 0x20, 0x00, 0x08},      /*mode*/
+         {HIGH_RESOLUTION_MODE, 0x23, 0x08, 0x08},      /*mode*/
+         {4, 0x23, 0x10, 0x30},                         /*range 4G*/
+         {50, 0x20, 0x40, 0xf0}                         /*odr  50HZ*/
+};
+#endif
