@@ -80,9 +80,14 @@ int ds16_seeprom_general_ucmd_write(struct solomon_device *dev, u8 *dbuf,
 		int nByte)
 {
 	int err = 0;
-	u8 ws_wd[1016] = {0,};
+	u8 *ws_wd;
 	int ws_wd_nbyte = 0;
 	int seeprom_ws_wd_ndelay = 0;
+
+	ws_wd = kmalloc(sizeof(unsigned char)*1016, GFP_KERNEL);
+
+	if (ws_wd == NULL)
+		return ERROR_PARSING_MALLOC_FAIL;
 
 	/* SEEPROM Header */
 	ws_wd[ws_wd_nbyte++] = 0x0A;
@@ -110,8 +115,11 @@ int ds16_seeprom_general_ucmd_write(struct solomon_device *dev, u8 *dbuf,
 
 	if (err < 0) {
 		SOLOMON_WARNNING("I2C write fail(0x%04x)!!", err);
+		kfree(ws_wd);
 		return err;
 	}
+
+	kfree(ws_wd);
 
 	return 0;
 }
@@ -129,13 +137,18 @@ int ds16_seeprom_general_ucmd_read(struct solomon_device *dev, u8 *Wbuf,
 		int WnByte, u8 *Rbuf, int RnByte)
 {
 	int err = 0;
-	unsigned char ws_wd[1016];
+	unsigned char *ws_wd;
 	int seeprom_ws_wd_ndelay = 0;
 	int seeprom_rs_wd_ndelay = 0;
 	int seeprom_rs_rd_ndelay = 0;
 	int seeprom_rs_wd_nbyte = 0;
 	int ws_wd_nbyte;
 	int ws_wd_ndelay;
+
+	ws_wd = kmalloc(sizeof(unsigned char)*1016, GFP_KERNEL);
+
+	if (ws_wd == NULL)
+		return ERROR_PARSING_MALLOC_FAIL;
 
 	/* SEEPROM, HEADER */
 	ws_wd_nbyte = 0;
@@ -164,8 +177,11 @@ int ds16_seeprom_general_ucmd_read(struct solomon_device *dev, u8 *Wbuf,
 
 	if (err < 0) {
 		SOLOMON_WARNNING("I2C READ CMD FAIL");
+		kfree(ws_wd);
 		return err;
 	}
+
+	kfree(ws_wd);
 
 	/* for setup tx transaction. */
 	udelay(ws_wd_ndelay);
@@ -267,8 +283,14 @@ int ds16_seeprom_wren(struct solomon_device *dev)
  */
 int ds16_seeprom_pp(struct solomon_device *dev, u32 add, u8 *Wbuf, int nbyte)
 {
-	unsigned char ws_wd[1016];
+	unsigned char *ws_wd;
 	int ws_wd_nbyte;
+	int ret;
+
+	ws_wd = kmalloc(sizeof(unsigned char)*1016, GFP_KERNEL);
+
+	if (ws_wd == NULL)
+		return ERROR_PARSING_MALLOC_FAIL;
 
 	ws_wd_nbyte = 0;
 	ws_wd[ws_wd_nbyte++] = 0x02;
@@ -279,8 +301,10 @@ int ds16_seeprom_pp(struct solomon_device *dev, u32 add, u8 *Wbuf, int nbyte)
 	memcpy(ws_wd+ws_wd_nbyte, Wbuf, nbyte);
 
 	ws_wd_nbyte += nbyte;
+	ret = ds16_seeprom_general_ucmd_write(dev, ws_wd, ws_wd_nbyte);
+	kfree(ws_wd);
 
-	return ds16_seeprom_general_ucmd_write(dev, ws_wd, ws_wd_nbyte);
+	return ret;
 }
 
 /*	read status register?
