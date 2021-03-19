@@ -1050,7 +1050,7 @@ static int ltr558_probe(struct i2c_client *client, const struct i2c_device_id *i
 		PRINT_ERR("create_singlethread_workqueue failed!\n");
 		goto exit_create_singlethread_workqueue_failed;
 	}
-	wakeup_source_create("psensor timeout wakelock");
+	ws = wakeup_source_create("psensor timeout wakelock");
 	wakeup_source_add(ws);
 	if (client->irq > 0) {
 		/* irq may missed if edge falling when als/ps are both enable */
