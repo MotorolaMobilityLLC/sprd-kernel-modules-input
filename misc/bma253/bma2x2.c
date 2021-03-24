@@ -1332,6 +1332,7 @@ static const struct interrupt_map_t int_map[] = {
 * aim at writing operation FIFO_CONFIG_1, 0x3E register */
 #define FIFO_WORKAROUNDS_MSK         BMA2X2_FIFO_TRIGGER_SOURCE__MSK
 
+static int filter_flag;
 static unsigned int odr_delay;
 static char chip_info[20];
 static struct task_struct *thread;
@@ -1360,11 +1361,11 @@ struct bma2x2_type_map_t {
 
 static const struct bma2x2_type_map_t sensor_type_map[] = {
 
-	{BMA255_CHIP_ID, BMA255_TYPE, "BMA253"},
-	{BMA355_CHIP_ID, BMA255_TYPE, "BMA355"},
-	{BMA250E_CHIP_ID, BMA250E_TYPE, "BMA250E"},
-	{BMA222E_CHIP_ID, BMA222E_TYPE, "BMA222E"},
-	{BMA280_CHIP_ID, BMA280_TYPE, "BMA280"},
+	{BMA255_CHIP_ID, BMA255_TYPE, "bma253"},
+	{BMA355_CHIP_ID, BMA255_TYPE, "bma355"},
+	{BMA250E_CHIP_ID, BMA250E_TYPE, "bma250e"},
+	{BMA222E_CHIP_ID, BMA222E_TYPE, "bma222e"},
+	{BMA280_CHIP_ID, BMA280_TYPE, "bma280"},
 
 };
 
@@ -1657,6 +1658,7 @@ static int bma2x2_check_chip_id(struct i2c_client *client,
 						sensor_type_map[i].sensor_name);
 				sprintf(chip_info, "%s",
 						sensor_type_map[i].sensor_name);
+				filter_flag = 1;
 					return err;
 			}
 		}
@@ -4896,8 +4898,8 @@ static struct workqueue_struct *reportdata_wq;
 uint64_t bma2x2_get_alarm_timestamp(void)
 {
 	uint64_t ts_ap;
-	struct timespec tmp_time;
-	get_monotonic_boottime(&tmp_time);
+	struct timespec64 tmp_time;
+	ktime_get_boottime_ts64(&tmp_time);
 	ts_ap = (uint64_t)tmp_time.tv_sec * 1000000000 + tmp_time.tv_nsec;
 	return ts_ap;
 }
@@ -5323,7 +5325,7 @@ static ssize_t bma2x2_delay_store(struct device *dev,
 		return error;
 	if (data > BMA2X2_MAX_DELAY)
 		data = BMA2X2_MAX_DELAY;
-		delay_ms = data;
+	delay_ms = data;
 	if (data != atomic_read(&bma2x2->delay)) {
 #ifdef BMA_ENABLE_NEWDATA_INT
 		bma2x2_update_odr(bma2x2->bma2x2_client,
@@ -5362,6 +5364,9 @@ static void bma2x2_set_enable(struct device *dev, unsigned char enable)
 		    msecs_to_jiffies(atomic_read(&bma2x2->delay)));
 #endif
 	    atomic_set(&bma2x2->enable, 1);
+	    bma2x2->value.x = 0;
+	    bma2x2->value.y = 0;
+	    bma2x2->value.z = 0;
 	    enable_irq(bma2x2->irq);
 	}
 
@@ -6104,11 +6109,11 @@ static DEVICE_ATTR(value, S_IRUGO,
 		bma2x2_value_show, NULL);
 static DEVICE_ATTR(value_cache, S_IRUGO,
 		bma2x2_value_cache_show, NULL);
-static DEVICE_ATTR(delay, 0644,
+static DEVICE_ATTR(acc_delay, 0644,
 		bma2x2_delay_show, bma2x2_delay_store);
-static DEVICE_ATTR(enable, 0644,
+static DEVICE_ATTR(acc_enable, 0644,
 		bma2x2_enable_show, bma2x2_enable_store);
-static DEVICE_ATTR(chip_info, 0444,
+static DEVICE_ATTR(acc_chip_info, 0444,
 		bma2x2_chip_info_show, NULL);
 static DEVICE_ATTR(SleepDur, S_IRUGO|S_IWUSR|S_IWGRP,
 		bma2x2_SleepDur_show, bma2x2_SleepDur_store);
@@ -6209,9 +6214,9 @@ static struct attribute *bma2x2_attributes[] = {
 	&dev_attr_op_mode.attr,
 	&dev_attr_value.attr,
 	&dev_attr_value_cache.attr,
-	&dev_attr_delay.attr,
-	&dev_attr_enable.attr,
-	&dev_attr_chip_info.attr,
+	&dev_attr_acc_delay.attr,
+	&dev_attr_acc_enable.attr,
+	&dev_attr_acc_chip_info.attr,
 	&dev_attr_SleepDur.attr,
 	&dev_attr_reg.attr,
 	&dev_attr_fast_calibration_x.attr,
@@ -6392,12 +6397,17 @@ static noinline void bma2x2_update_data(void *u)
 	runthread_cnt++;
 	time_mono_before = ktime_get();
 
+	if (filter_flag) {
+		filter_flag = 0;
+		enable_irq(bma2x2->irq);
+		return;
+	}
 	/*
 	  * when odr updated, the sensor need 3 data frame times
 	  * or 200ms to get stable
 	  */
 	if ((odr_delay == 0) || ((bma2x2->value.x == 0) &&
-		(bma2x2->value.x == 0) && (bma2x2->value.x == 0))) {
+		(bma2x2->value.y == 0) && (bma2x2->value.z == 0))) {
 		atomic_inc(&bma2x2->i2c_busy);
 		/* rd_sesult < 0, i2c read error */
 		rd_result = bma2x2_read_accel_xyz(bma2x2->bma2x2_client,

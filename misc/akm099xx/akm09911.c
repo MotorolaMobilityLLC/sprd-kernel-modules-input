@@ -48,6 +48,9 @@
 
 #define AKM099XX_MIN_DELAY 5
 #define AKM099XX_PRODUCT_ID 0x48
+#define AKM09911_DEVICE_ID 0x05
+#define AKM09918_DEVICE_ID 0x0C
+#define AKM_DEVICE_ID_NODE "device_id"
 
 #define AKM099XX_SINGLE_POWER 0
 
@@ -57,6 +60,14 @@
 #define AKM099XX_RETRY_COUNT    10
 #define AKM099XX_DEFAULT_INTERVAL_MS    50
 #define AKM099XX_TIMEOUT_SET_MS 15000
+
+#define SENS_0600_Q16  ((int32_t)(39322)) /* 0.6 * 2^32  in Q16 format */
+#define SENS_0150_Q16  ((int32_t)(9830))  /* 0.15 * 2^32 in Q16 format */
+
+/* Global variable for ASA value. */
+static uint8_t g_asa[3];
+static int32_t g_raw_to_micro_q16[3];
+static uint8_t device_id;
 
 struct AKM099XX_data {
 	struct i2c_client *i2c;
@@ -134,10 +145,17 @@ static int AKM099XX_read_xyz(struct AKM099XX_data *akm, int *vec)
 		dev_err(&akm->i2c->dev, "read reg id failed.(%d)\n", rc);
 		return rc;
 	}
-	tmp[0] = data[2] << 8 | data[1];
-	tmp[1] = data[4] << 8 | data[3];
-	tmp[2] = data[6] << 8 | data[5];
 
+	tmp[0] = (int16_t)(((uint16_t)(data[2]) << 8) | (uint16_t)(data[1]));
+	tmp[1] = (int16_t)(((uint16_t)(data[4]) << 8) | (uint16_t)(data[3]));
+	tmp[2] = (int16_t)(((uint16_t)(data[6]) << 8) | (uint16_t)(data[5]));
+
+	/* multiply ASA and convert to micro tesla in Q16 */
+	tmp[0] *= g_raw_to_micro_q16[0];
+	tmp[1] *= g_raw_to_micro_q16[1];
+	tmp[2] *= g_raw_to_micro_q16[2];
+
+	/* axis conversion parameter */
 	vec[0] = tmp[0];
 	vec[1] = tmp[1];
 	vec[2] = tmp[2];
@@ -232,9 +250,9 @@ static struct input_dev *AKM099XX_init_input(struct AKM099XX_data *akm)
 
 	__set_bit(EV_ABS, input->evbit);
 	input_set_events_per_packet(input, 100);
-	input_set_abs_params(input, ABS_RX, -32768, 32767, 0, 0);
-	input_set_abs_params(input, ABS_RY, -32768, 32767, 0, 0);
-	input_set_abs_params(input, ABS_RZ, -32768, 32767, 0, 0);
+	input_set_abs_params(input, ABS_RX, INT_MIN, INT_MAX, 0, 0);
+	input_set_abs_params(input, ABS_RY, INT_MIN, INT_MAX, 0, 0);
+	input_set_abs_params(input, ABS_RZ, INT_MIN, INT_MAX, 0, 0);
 	/*input_set_abs_params(input, ABS_RUDDER, 0, 3, 0, 0);*/
 
 	/* Report the dummy value */
@@ -259,16 +277,91 @@ static int AKM099XX_check_device(struct AKM099XX_data *akm)
 {
 	int rc;
 	unsigned char rd_buffer[2];
-	rd_buffer[0] = AKM099XX_REG_PRODUCTID_1;
+	unsigned char tx_buffer[2];
+
+	/* Soft Reset */
+	tx_buffer[0] = AK099XX_REG_CNTL3;
+	tx_buffer[1] = AK099XX_SOFT_RESET;
+	rc = AKM099XX_i2c_txdata(akm->i2c, tx_buffer, 2);
+	if (rc) {
+		return -ENODEV;
+	}
+
+	/* When succeeded, sleep 'Twait' */
+	msleep(100);
+
+	/* read sensor company ID */
+	rd_buffer[0] = AK099XX_REG_WIA1;
 	rc = AKM099XX_i2c_rxdata(akm->i2c, rd_buffer, 1);
 	if (rc) {
 		dev_err(&akm->i2c->dev, "read reg id failed.(%d)\n", rc);
 		return rc;
 	}
-	printk("AKM099XX current device is 0x%x\n", rd_buffer[0]);
+	dev_info(&akm->i2c->dev, "AKM099XX company_id is 0x%x\n", rd_buffer[0]);
 
 	if (rd_buffer[0] != AKM099XX_PRODUCT_ID)
 		return -ENODEV;
+
+	/* read sensor device ID */
+	rd_buffer[0] = AK099XX_REG_WIA2;
+	rc = AKM099XX_i2c_rxdata(akm->i2c, rd_buffer, 1);
+	if (rc) {
+		dev_err(&akm->i2c->dev, "read reg id failed.(%d)\n", rc);
+		return rc;
+	}
+	dev_info(&akm->i2c->dev, "AKM099XX device_id is 0x%x\n", rd_buffer[0]);
+	device_id = rd_buffer[0];
+
+	/* read fuse reg value */
+	if (rd_buffer[0] == AKM09911_DEVICE_ID) {
+
+		/* Read FUSE ROM value */
+		tx_buffer[0] = AK099XX_REG_CNTL2;
+		tx_buffer[1] = AK099XX_MODE_FUSE_ACCESS;
+		rc = AKM099XX_i2c_txdata(akm->i2c, tx_buffer, 2);
+		if (rc) {
+			return rc;
+		}
+
+		g_asa[0] = AK099XX_FUSE_ASAX;
+		rc = AKM099XX_i2c_rxdata(akm->i2c, g_asa, 3);
+		if (rc) {
+			return rc;
+		}
+
+		tx_buffer[0] = AK099XX_REG_CNTL2;
+		tx_buffer[1] = AK099XX_MODE_POWER_DOWN;
+		rc = AKM099XX_i2c_txdata(akm->i2c, tx_buffer, 2);
+		if (rc) {
+			return rc;
+		}
+	} else {
+		/* Other device does not have ASA. */
+		g_asa[0] = 128;
+		g_asa[1] = 128;
+		g_asa[2] = 128;
+	}
+
+	if (rd_buffer[0] == AKM09911_DEVICE_ID) {
+		/* The equation is: H_adj = H_raw x (ASA / 128 + 1)
+		 * Convert from LSB to micro tesla in Q16, multiply (SENS x 2^16)
+		 * Simplify the equation: coeff = ((ASA + 128) x SENS x 2^16) >> 7
+		 * In case of AK09911, SENS = 0.6.
+		 * So coeff = ((ASA + 128) x 39322) >> 7
+		 */
+		dev_info(&akm->i2c->dev, "AKM099XX g_asa[0]=%d,g_asa[1]=%d,g_asa[2]=%d\n",
+			g_asa[0], g_asa[1], g_asa[2]);
+		g_raw_to_micro_q16[0] = ((int32_t)(g_asa[0] + 128) * SENS_0600_Q16) >> 7;
+		g_raw_to_micro_q16[1] = ((int32_t)(g_asa[1] + 128) * SENS_0600_Q16) >> 7;
+		g_raw_to_micro_q16[2] = ((int32_t)(g_asa[2] + 128) * SENS_0600_Q16) >> 7;
+	} else if (rd_buffer[0] == AKM09918_DEVICE_ID) {
+		/* AK09913 or newer devices does not have ASA register. It means that user
+		 * does not need to write adjustment equation.
+		 */
+		g_raw_to_micro_q16[0] = SENS_0150_Q16;
+		g_raw_to_micro_q16[1] = SENS_0150_Q16;
+		g_raw_to_micro_q16[2] = SENS_0150_Q16;
+	}
 
 	return 0;
 }
@@ -339,9 +432,15 @@ static int AKM099XX_set_enable(struct AKM099XX_data *akm, unsigned int enable)
 
 	return 0;
 }
+
+static ssize_t AKM099XX_device_id(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%d\n", device_id);
+}
+
 static ssize_t AKM099XX_chip_info(struct device *dev, struct device_attribute *attr, char *buf)
 {
-    return sprintf(buf, "%s\n", "akm099xx chip");
+	return sprintf(buf, "%s\n", "akm099xx chip");
 }
 
 static ssize_t AKM099XX_layout_show(struct device *dev, struct device_attribute *attr, char *buf)
@@ -374,12 +473,14 @@ static ssize_t AKM099XX_delay_show(struct device *dev, struct device_attribute *
 	return 0;
 }
 
+static DEVICE_ATTR(device_id, S_IRUSR|S_IRGRP, AKM099XX_device_id, NULL);
 static DEVICE_ATTR(chipinfo, S_IRUSR|S_IRGRP, AKM099XX_chip_info, NULL);
 static DEVICE_ATTR(layout, S_IRUSR|S_IRGRP|S_IWUSR, AKM099XX_layout_show, AKM099XX_layout_store);
 static DEVICE_ATTR(value, S_IRUSR|S_IRGRP, AKM099XX_value_show, NULL);
 static DEVICE_ATTR(delay, S_IRUSR|S_IRGRP, AKM099XX_delay_show, NULL);
 
 static struct attribute *AKM099XX_attributes[] = {
+	&dev_attr_device_id.attr,
 	&dev_attr_chipinfo.attr,
 	&dev_attr_layout.attr,
 	&dev_attr_value.attr,
@@ -449,7 +550,7 @@ static long AKM099XX_unlocked_ioctl(struct file *file, unsigned int cmd, unsigne
 			if (copy_from_user(&enable, argp, sizeof(enable))) {
 				return -EFAULT;
 			}
-			if (enable < 0 || enable > 1) {
+			if (enable > 1) {
 				return -EINVAL;
 			}
 			printk("%s enable = %d xiexie \n", __FUNCTION__, enable);
@@ -546,12 +647,14 @@ static int AKM099XX_probe(struct i2c_client *client, const struct i2c_device_id 
 	}
 
 	/* create sysfs group */
-	res = sysfs_create_group(&client->dev.kobj, &AKM099XX_attr_group);
+	res = sysfs_create_group(&akm->idev->dev.kobj, &AKM099XX_attr_group);
 	if (res) {
 		res = -EROFS;
 		dev_err(&client->dev, "Unable to creat sysfs group\n");
 		goto exit_sysfs_create_group_failed;
 	}
+
+	kobject_uevent(&akm->idev->dev.kobj, KOBJ_ADD);
 
 	printk("AKM099XX successfully probed\n");
 
@@ -561,7 +664,6 @@ exit_sysfs_create_group_failed:
 	misc_deregister(&AKM099XX_device);
 exit_misc_device_register_failed:
 	kthread_stop(akm->thread);
-	input_unregister_device(akm->idev);
 free_akm:
 out:
 	return res;
@@ -571,12 +673,9 @@ static int AKM099XX_remove(struct i2c_client *client)
 {
 	struct AKM099XX_data *akm = dev_get_drvdata(&client->dev);
 
-	if (akm->idev)
-		input_unregister_device(akm->idev);
-
 	hrtimer_cancel(&akm->work_timer);
 	kthread_stop(akm->thread);
-	sysfs_remove_group(&client->dev.kobj, &AKM099XX_attr_group);
+	sysfs_remove_group(&akm->idev->dev.kobj, &AKM099XX_attr_group);
 	misc_deregister(&AKM099XX_device);
 
 	return 0;

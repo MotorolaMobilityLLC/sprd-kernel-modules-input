@@ -26,10 +26,8 @@
 
 #define AKM099XX_I2C_NAME		"AKM099XX"
 
-
 #define AKM099XX_REG_DATA		0x10
 #define AKM099XX_REG_PRODUCTID_1		0x00
-
 
 #define CONVERT_M			25
 #define CONVERT_M_DIV		8192
@@ -71,5 +69,26 @@
 #define MSENSOR_IOCTL_MSENSOR_ENABLE             _IOW(MSENSOR, 0x55, int)
 #define MSENSOR_IOCTL_OSENSOR_ENABLE             _IOW(MSENSOR, 0x56, int)
 
+#define AK099XX_SOFT_RESET               0x01
+
+#define AK099XX_REG_WIA1                 0x00
+#define AK099XX_REG_WIA2                 0x01
+
+#define AK099XX_REG_CNTL2                0x31
+#define AK099XX_REG_CNTL3                0x32
+#define AK099XX_MODE_POWER_DOWN          0x00
+
+#define AK099XX_MODE_SNG_MEASURE         0x01
+#define AK099XX_MODE_CONT_MEASURE_MODE1  0x02
+#define AK099XX_MODE_CONT_MEASURE_MODE2  0x04
+#define AK099XX_MODE_CONT_MEASURE_MODE3  0x06
+#define AK099XX_MODE_CONT_MEASURE_MODE4  0x08
+#define AK099XX_MODE_CONT_MEASURE_MODE5  0x0A
+#define AK099XX_MODE_CONT_MEASURE_MODE6  0x0C
+
+#define AK099XX_MODE_FUSE_ACCESS         0x1F
+#define AK099XX_FUSE_ASAX                0x60
+#define AK099XX_FUSE_ASAY                0x61
+#define AK099XX_FUSE_ASAZ                0x62
 
 #endif /* __AKM099XX_H__ */
