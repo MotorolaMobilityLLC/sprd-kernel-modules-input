@@ -64,6 +64,7 @@ struct platform_device *sf_pdev;
 
 #if ANDROID_WAKELOCK
 #include <linux/pm_wakeup.h>
+static struct wakeup_source *wake;
 #endif
 
 static int sf_ctl_init_irq(void);
@@ -172,7 +173,7 @@ static irqreturn_t sf_ctl_device_irq(int irq, void *dev_id)
 	xprintk(KERN_DEBUG, "%s(irq = %d, ..) toggled.\n", __func__, irq);
 	schedule_work(&sf_ctl_dev->work_queue);
 #if ANDROID_WAKELOCK
-	__pm_wakeup_event(&sf_ctl_dev->wakelock, msecs_to_jiffies(5000));
+	__pm_wakeup_event(wake, msecs_to_jiffies(5000));
 #endif
 	sunwave_set_irq_type(IRQF_TRIGGER_RISING | IRQF_NO_SUSPEND |
 				IRQF_ONESHOT);
@@ -415,7 +416,11 @@ static int sf_probe(struct platform_device *pdev)
 	xprintk(KERN_ERR, "sunwave %s enter\n", __func__);
 
 #if ANDROID_WAKELOCK
-	wakeup_source_init(&sf_ctl_dev.wakelock, "sunwave_wl");
+	//wakeup_source_init(&sf_ctl_dev.wakelock, "sunwave_wl");
+	wake = wakeup_source_register(NULL, "sunwave_wl");
+	if (!wake) {
+		return -ENOMEM;
+	}
 #endif
 
 #if MULTI_HAL_COMPATIBLE
@@ -477,7 +482,8 @@ static int sf_remove(struct platform_device *pdev)
 
 	misc_deregister(&sf_ctl_dev.miscdev);
 #if ANDROID_WAKELOCK
-	wakeup_source_trash(&sf_ctl_dev.wakelock);
+	//wakeup_source_trash(&sf_ctl_dev.wakelock);
+	wakeup_source_unregister(wake);
 #endif
 	return 0;
 }
