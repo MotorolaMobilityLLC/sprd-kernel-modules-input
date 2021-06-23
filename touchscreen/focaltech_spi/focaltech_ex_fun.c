@@ -492,13 +492,13 @@ int fts_create_apk_debug_channel(struct fts_ts_data *ts_data)
 {
 	struct ftxxxx_proc *proc = &ts_data->proc;
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0))
-	proc->proc_entry = proc_create(PROC_NAME, 0777, NULL, &fts_proc_fops);
+	proc->proc_entry = proc_create(PROC_NAME, 0664, NULL, &fts_proc_fops);
 	if (proc->proc_entry == NULL) {
 		FTS_ERROR("create proc entry fail");
 		return -ENOMEM;
 	}
 #else
-	proc->proc_entry = create_proc_entry(PROC_NAME, 0777, NULL);
+	proc->proc_entry = create_proc_entry(PROC_NAME, 0664, NULL);
 	if (proc->proc_entry == NULL) {
 		FTS_ERROR("create proc entry fail");
 		return -ENOMEM;
