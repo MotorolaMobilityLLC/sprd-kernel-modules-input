@@ -31,8 +31,8 @@ static LIST_HEAD(controllers);
 static DEFINE_SPINLOCK(controller_lock);
 static unsigned short address_pool[POOL_MAX_SIZE];
 static unsigned int pool_length;
-static unsigned short lcd_width;
-static unsigned short lcd_height;
+static unsigned short lcd_width = 1080;
+static unsigned short lcd_height = 1920;
 static bool cali;
 
 /* parse key name using key code */
