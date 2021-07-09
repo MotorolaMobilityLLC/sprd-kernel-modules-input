@@ -31,8 +31,8 @@ static LIST_HEAD(controllers);
 static DEFINE_SPINLOCK(controller_lock);
 static unsigned short address_pool[POOL_MAX_SIZE];
 static unsigned int pool_length;
-static unsigned short lcd_width = 1080;
-static unsigned short lcd_height = 1920;
+static unsigned short lcd_width;
+static unsigned short lcd_height;
 static bool cali;
 
 /* parse key name using key code */
@@ -587,6 +587,69 @@ static enum ts_bustype ts_bus_init(struct device_node *bus_node, bool adaptive)
 	return TSBUS_NONE;
 }
 
+static int ts_parse_lcd_size(char *str)
+{
+	char *c, buf[32] = { 0 };
+	int length;
+	if (str != NULL) {
+		c = strchr(str, 'x');
+		if (c != NULL) {
+			/* height */
+			length = c - str;
+			strncpy(buf, str, length);
+			if (kstrtou16(buf, 10, &lcd_height))
+				lcd_height = 0;
+			/* width */
+			length = strlen(str) - (c - str) - 1;
+			strncpy(buf, c + 1, length);
+			buf[length] = '\0';
+			if (kstrtou16(buf, 10, &lcd_width))
+				lcd_width = 0;
+		} else {
+			lcd_width = lcd_height = 0;
+		}
+	}
+	pr_info("lcd_height = %d, lcd_width = %d\n",lcd_height,lcd_width);
+	return 1;
+}
+
+static int get_lcd_size(char *lcd_size)
+{
+    struct device_node *np;
+    const char *cmd_line;
+    char *s = NULL;
+
+    int ret = 0;
+    np = of_find_node_by_path("/chosen");
+
+    if (!np) {
+        pr_err("Can't get the /chosen\n");
+        return -EIO;
+    }
+
+    ret = of_property_read_string(np, "bootargs", &cmd_line);
+    if (ret < 0) {
+        pr_err("Can't get the bootargs\n");
+        return ret;
+    }
+
+    s = strstr(cmd_line, "lcd_size=");
+    s += sizeof("lcd_size");
+    while(*s != ' '){
+        *lcd_size++ = *s++;
+    }
+    *lcd_size = '\0';
+
+    return 0;
+}
+
+static void set_param_width_height()
+{
+	char lcd_size_str[10] = {0};
+	get_lcd_size(lcd_size_str);
+	ts_parse_lcd_size(lcd_size_str);
+}
+
 /*
  * init board related configurations, providing bus access and configs
  * for touchscreen core module
@@ -597,6 +660,7 @@ int ts_board_init(void)
 	struct ts_board *board = NULL;
 	enum ts_bustype bus_type = TSBUS_I2C;
 
+	set_param_width_height();
 	pn = of_find_compatible_node(NULL, NULL, ATS_COMPATIBLE);
 	if (IS_ERR_OR_NULL(pn)) {
 		pr_err("cannot find compatible node \"%s\"", ATS_COMPATIBLE);
