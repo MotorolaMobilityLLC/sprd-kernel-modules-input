@@ -456,10 +456,10 @@ static void ts_firmware_upgrade_worker(const struct firmware *fw, void *context)
 
 	ts_set_mode(pdata, TSMODE_CONTROLLER_STATUS, false);
 	dev_dbg(dev, ">>> Upgrade Firmware Begin <<<");
-	__pm_stay_awake(&pdata->upgrade_lock);
+	__pm_stay_awake(pdata->upgrade_lock);
 	ret = pdata->controller->upgrade_firmware(pdata->controller,
 		fw->data, fw->size, param->force_upgrade);
-	__pm_relax(&pdata->upgrade_lock);
+	__pm_relax(pdata->upgrade_lock);
 	dev_dbg(dev, ">>> Upgrade Firmware End <<<");
 	if (ret == TSRESULT_UPGRADE_FINISHED)
 		dev_info(dev, ">>> Upgrade Result: Success <<<");
@@ -528,7 +528,7 @@ static int ts_register_input_dev(struct ts_data *pdata)
 	struct device *dev = &pdata->pdev->dev;
 
 	input = devm_input_allocate_device(&pdata->pdev->dev);
-	if (IS_ERR(input)) {
+	if ((!input) || (IS_ERR(input))) {
 		dev_err(dev, "Failed to allocate input device.");
 		return -ENOMEM;
 	}
@@ -1768,8 +1768,8 @@ static int ts_probe(struct platform_device *pdev)
 
 	if (ts_get_mode(pdata, TSMODE_CONTROLLER_EXIST)) {
 		/* prefer to use irq if supported */
-		if ((pdata->controller->config & TSCONF_REPORT_MODE_MASK)
-			== TSCONF_REPORT_MODE_IRQ) {
+		if ((pdata->controller)&&((pdata->controller->config & TSCONF_REPORT_MODE_MASK)
+			== TSCONF_REPORT_MODE_IRQ)) {
 			pdata->irq = gpio_to_irq(pdata->board->int_gpio);
 			if (likely(pdata->irq > 0) && !ts_isr_control(pdata, true))
 				dev_dbg(dev, "works in interrupt mode, irq=%d", pdata->irq);
@@ -1808,7 +1808,8 @@ static int ts_probe(struct platform_device *pdev)
 		dev_err(dev, "error in register external event!");
 
 	pr_info("ts platform device probe OK");
-	wakeup_source_add(&pdata->upgrade_lock);
+	pdata->upgrade_lock = wakeup_source_create("ats__wakelock");
+	wakeup_source_add(pdata->upgrade_lock);
 	return 0;
 }
 
@@ -1832,7 +1833,7 @@ static int ts_remove(struct platform_device *pdev)
 
 	pdata->status = 0;
 
-	wakeup_source_destroy(&pdata->upgrade_lock);
+	wakeup_source_destroy(pdata->upgrade_lock);
 
 	return 0;
 }

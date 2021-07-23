@@ -669,6 +669,7 @@ int ts_board_init(void)
 
 	board = ts_parse_dt(pn);
 	if (IS_ERR_OR_NULL(board)) {
+		kfree(board);
 		pr_err("parsing board info failed!");
 		return -ENODEV;
 	}

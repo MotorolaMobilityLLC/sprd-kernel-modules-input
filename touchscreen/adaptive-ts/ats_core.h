@@ -226,7 +226,7 @@ struct ts_data {
 	struct work_struct notifier_work;
 	struct workqueue_struct *notifier_workqueue;
 
-	struct wakeup_source upgrade_lock;
+	struct wakeup_source *upgrade_lock;
 	/*
 	 * stash points to filter changed fields when using type 3
 	 * store every point using slot as array index, we assume
