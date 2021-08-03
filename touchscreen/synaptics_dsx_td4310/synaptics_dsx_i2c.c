@@ -425,7 +425,7 @@ struct synaptics_rmi4_f12_query_8 {
 				unsigned char data15_is_present:1;
 			} __packed;
 		};
-		unsigned char data[3];
+		unsigned char data[5];
 	};
 };
 
