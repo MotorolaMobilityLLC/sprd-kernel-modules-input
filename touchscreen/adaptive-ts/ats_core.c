@@ -1099,14 +1099,19 @@ static ssize_t ts_firmware_upgrade_store(struct device *dev,
 	struct device_attribute *attr, const char *buf, size_t count)
 {
 	struct ts_data *pdata = platform_get_drvdata(to_platform_device(dev));
-	char name[128] = { 0 };
+	char *name = NULL;
 
 	count--;
-
 	if (count > 1) {
+		name = kzalloc(count, GFP_KERNEL);
+		if (name == NULL) {
+			dev_err(dev, "Fail to malloc name!");
+			return -ENOMEM;
+		}
 		memcpy(name, buf, count);
 		/* upgrading with designated firmware file */
 		ts_request_firmware_upgrade(pdata, name, true);
+		kfree(name);
 	} else if (count == 1) {
 		ts_request_firmware_upgrade(pdata, NULL, buf[0] == 'f');
 	}
