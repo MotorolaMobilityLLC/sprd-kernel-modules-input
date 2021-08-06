@@ -528,7 +528,7 @@ static int ts_register_input_dev(struct ts_data *pdata)
 	struct device *dev = &pdata->pdev->dev;
 
 	input = devm_input_allocate_device(&pdata->pdev->dev);
-	if ((!input) || (IS_ERR(input))) {
+	if (IS_ERR_OR_NULL(input)) {
 		dev_err(dev, "Failed to allocate input device.");
 		return -ENOMEM;
 	}
@@ -1694,6 +1694,7 @@ static void ts_filesys_remove(struct ts_data *pdata)
 static int ts_probe(struct platform_device *pdev)
 {
 	int retval;
+	bool flag = false;
 	struct ts_data *pdata;
 	struct device *dev = &pdev->dev;
 
@@ -1767,9 +1768,10 @@ static int ts_probe(struct platform_device *pdev)
 	pdata->poll_interval = TS_POLL_INTERVAL;
 
 	if (ts_get_mode(pdata, TSMODE_CONTROLLER_EXIST)) {
+		flag = (pdata->controller)&&((pdata->controller->config & TSCONF_REPORT_MODE_MASK)
+			== TSCONF_REPORT_MODE_IRQ);
 		/* prefer to use irq if supported */
-		if ((pdata->controller)&&((pdata->controller->config & TSCONF_REPORT_MODE_MASK)
-			== TSCONF_REPORT_MODE_IRQ)) {
+		if (flag) {
 			pdata->irq = gpio_to_irq(pdata->board->int_gpio);
 			if (likely(pdata->irq > 0) && !ts_isr_control(pdata, true))
 				dev_dbg(dev, "works in interrupt mode, irq=%d", pdata->irq);
