@@ -55,7 +55,22 @@
 #define NO_SLEEP_ON (1 << 2)
 
 #define GET_REPORT_TIMEOUT_S 3
-
+static inline ssize_t synaptics_rmi4_show_f54_error(struct kobject *kobj,
+		struct kobj_attribute *attr, char *buf)
+{
+	struct device *dev = kobj_to_dev(kobj);
+	dev_warn(dev, "%s Attempted to read from write-only attribute %s\n",
+			__func__, attr->attr.name);
+	return -EPERM;
+}
+static inline ssize_t synaptics_rmi4_store_f54_error(struct kobject *kobj,
+  		struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	struct device *dev = kobj_to_dev(kobj);
+	dev_warn(dev, "%s Attempted to write to read-only attribute %s\n",
+			__func__, attr->attr.name);
+	return -EPERM;
+}
 #if 0
 #define RAW_HEX
 #define HUMAN_READABLE
@@ -209,46 +224,46 @@
 
 #define show_prototype(propname)\
 static ssize_t concat(synaptics_rmi4_f54, _##propname##_show)(\
-		struct device *dev,\
-		struct device_attribute *attr,\
+		struct kobject *kobj,\
+		struct kobj_attribute *attr,\
 		char *buf);\
 \
-static struct device_attribute dev_attr_##propname =\
+static struct kobj_attribute dev_attr_##propname =\
 		__ATTR(propname, S_IRUGO,\
 		concat(synaptics_rmi4_f54, _##propname##_show),\
-		synaptics_rmi4_store_error)
+		synaptics_rmi4_store_f54_error)
 
 #define store_prototype(propname)\
 static ssize_t concat(synaptics_rmi4_f54, _##propname##_store)(\
-		struct device *dev,\
-		struct device_attribute *attr,\
+		struct kobject *kobj,\
+		struct kobj_attribute *attr,\
 		const char *buf, size_t count);\
 \
-static struct device_attribute dev_attr_##propname =\
+static struct kobj_attribute dev_attr_##propname =\
 		__ATTR(propname, S_IWUSR | S_IWGRP,\
-		synaptics_rmi4_show_error,\
+		synaptics_rmi4_show_f54_error,\
 		concat(synaptics_rmi4_f54, _##propname##_store))
 
 #define show_store_prototype(propname)\
 static ssize_t concat(synaptics_rmi4_f54, _##propname##_show)(\
-		struct device *dev,\
-		struct device_attribute *attr,\
+		struct kobject *kobj,\
+		struct kobj_attribute *attr,\
 		char *buf);\
 \
 static ssize_t concat(synaptics_rmi4_f54, _##propname##_store)(\
-		struct device *dev,\
-		struct device_attribute *attr,\
+		struct kobject *kobj,\
+		struct kobj_attribute *attr,\
 		const char *buf, size_t count);\
 \
-static struct device_attribute dev_attr_##propname =\
+static struct kobj_attribute dev_attr_##propname =\
 		__ATTR(propname, (S_IRUGO | S_IWUSR | S_IWGRP),\
 		concat(synaptics_rmi4_f54, _##propname##_show),\
 		concat(synaptics_rmi4_f54, _##propname##_store))
 
 #define simple_show_func(rtype, propname, fmt)\
 static ssize_t concat(synaptics_rmi4_f54, _##propname##_show)(\
-		struct device *dev,\
-		struct device_attribute *attr,\
+		struct kobject *kobj,\
+		struct kobj_attribute *attr,\
 		char *buf)\
 {\
 	return snprintf(buf, PAGE_SIZE, fmt, f54->rtype.propname);\
@@ -259,8 +274,8 @@ simple_show_func(rtype, propname, "%u\n")
 
 #define show_func(rtype, rgrp, propname, fmt)\
 static ssize_t concat(synaptics_rmi4_f54, _##propname##_show)(\
-		struct device *dev,\
-		struct device_attribute *attr,\
+		struct kobject *kobj,\
+		struct kobj_attribute *attr,\
 		char *buf)\
 {\
 	int retval;\
@@ -289,8 +304,8 @@ static ssize_t concat(synaptics_rmi4_f54, _##propname##_show)(\
 show_func(rtype, rgrp, propname, fmt)\
 \
 static ssize_t concat(synaptics_rmi4_f54, _##propname##_store)(\
-		struct device *dev,\
-		struct device_attribute *attr,\
+		struct kobject *kobj,\
+		struct kobj_attribute *attr,\
 		const char *buf, size_t count)\
 {\
 	int retval;\
@@ -347,8 +362,8 @@ show_store_func(rtype, rgrp, propname, "%u\n")
 
 #define show_replicated_func(rtype, rgrp, propname, fmt)\
 static ssize_t concat(synaptics_rmi4_f54, _##propname##_show)(\
-		struct device *dev,\
-		struct device_attribute *attr,\
+		struct kobject *kobj,\
+		struct kobj_attribute *attr,\
 		char *buf)\
 {\
 	int retval;\
@@ -407,8 +422,8 @@ show_replicated_func(rtype, rgrp, propname, "%u")
 show_replicated_func(rtype, rgrp, propname, fmt)\
 \
 static ssize_t concat(synaptics_rmi4_f54, _##propname##_store)(\
-		struct device *dev,\
-		struct device_attribute *attr,\
+		struct kobject *kobj,\
+		struct kobj_attribute *attr,\
 		const char *buf, size_t count)\
 {\
 	int retval;\
@@ -2750,26 +2765,26 @@ static void remove_sysfs(void)
 	kobject_put(f54->attr_dir);
 }
 
-static ssize_t synaptics_rmi4_f54_status_show(struct device *dev,
-		struct device_attribute *attr, char *buf)
+static ssize_t synaptics_rmi4_f54_status_show(struct kobject *kobj,
+		struct kobj_attribute *attr, char *buf)
 {
 	return snprintf(buf, PAGE_SIZE, "%u\n", f54->status);
 }
 
-static ssize_t synaptics_rmi4_f54_report_size_show(struct device *dev,
-		struct device_attribute *attr, char *buf)
+static ssize_t synaptics_rmi4_f54_report_size_show(struct kobject *kobj,
+		struct kobj_attribute *attr, char *buf)
 {
 	return snprintf(buf, PAGE_SIZE, "%u\n", f54->report_size);
 }
 
-static ssize_t synaptics_rmi4_f54_no_auto_cal_show(struct device *dev,
-		struct device_attribute *attr, char *buf)
+static ssize_t synaptics_rmi4_f54_no_auto_cal_show(struct kobject *kobj,
+		struct kobj_attribute *attr, char *buf)
 {
 	return snprintf(buf, PAGE_SIZE, "%u\n", f54->no_auto_cal);
 }
 
-static ssize_t synaptics_rmi4_f54_no_auto_cal_store(struct device *dev,
-		struct device_attribute *attr, const char *buf, size_t count)
+static ssize_t synaptics_rmi4_f54_no_auto_cal_store(struct kobject *kobj,
+		struct kobj_attribute *attr, const char *buf, size_t count)
 {
 	int retval;
 	unsigned char data;
@@ -2815,14 +2830,14 @@ static ssize_t synaptics_rmi4_f54_no_auto_cal_store(struct device *dev,
 	return count;
 }
 
-static ssize_t synaptics_rmi4_f54_report_type_show(struct device *dev,
-		struct device_attribute *attr, char *buf)
+static ssize_t synaptics_rmi4_f54_report_type_show(struct kobject *kobj,
+		struct kobj_attribute *attr, char *buf)
 {
 	return snprintf(buf, PAGE_SIZE, "%u\n", f54->report_type);
 }
 
-static ssize_t synaptics_rmi4_f54_report_type_store(struct device *dev,
-		struct device_attribute *attr, const char *buf, size_t count)
+static ssize_t synaptics_rmi4_f54_report_type_store(struct kobject *kobj,
+		struct kobj_attribute *attr, const char *buf, size_t count)
 {
 	int retval;
 	unsigned char data;
@@ -2866,8 +2881,8 @@ static ssize_t synaptics_rmi4_f54_report_type_store(struct device *dev,
 	return -EINVAL;
 }
 
-static ssize_t synaptics_rmi4_f54_fifoindex_show(struct device *dev,
-		struct device_attribute *attr, char *buf)
+static ssize_t synaptics_rmi4_f54_fifoindex_show(struct kobject *kobj,
+		struct kobj_attribute *attr, char *buf)
 {
 	int retval;
 	unsigned char data[2];
@@ -2888,8 +2903,8 @@ static ssize_t synaptics_rmi4_f54_fifoindex_show(struct device *dev,
 
 	return snprintf(buf, PAGE_SIZE, "%u\n", f54->fifoindex);
 }
-static ssize_t synaptics_rmi4_f54_fifoindex_store(struct device *dev,
-		struct device_attribute *attr, const char *buf, size_t count)
+static ssize_t synaptics_rmi4_f54_fifoindex_store(struct kobject *kobj,
+		struct kobj_attribute *attr, const char *buf, size_t count)
 {
 	int retval;
 	unsigned char data[2];
@@ -2918,8 +2933,8 @@ static ssize_t synaptics_rmi4_f54_fifoindex_store(struct device *dev,
 	return count;
 }
 
-static ssize_t synaptics_rmi4_f54_read_report_show(struct device *dev,
-		struct device_attribute *attr, char *buf)
+static ssize_t synaptics_rmi4_f54_read_report_show(struct kobject *kobj,
+		struct kobj_attribute *attr, char *buf)
 {
 	unsigned int ii;
 	unsigned int jj;
@@ -3130,8 +3145,8 @@ static ssize_t synaptics_rmi4_f54_read_report_show(struct device *dev,
 	return count;
 }
 
-static ssize_t synaptics_rmi4_f54_read_report_store(struct device *dev,
-		struct device_attribute *attr, const char *buf, size_t count)
+static ssize_t synaptics_rmi4_f54_read_report_store(struct kobject *kobj,
+		struct kobj_attribute *attr, const char *buf, size_t count)
 {
 	int retval;
 	unsigned char timeout = GET_REPORT_TIMEOUT_S * 10;
@@ -3139,15 +3154,15 @@ static ssize_t synaptics_rmi4_f54_read_report_store(struct device *dev,
 	const char cmd[] = {'1', 0};
 	struct synaptics_rmi4_data *rmi4_data = f54->rmi4_data;
 
-	retval = synaptics_rmi4_f54_report_type_store(dev, attr, buf, count);
+	retval = synaptics_rmi4_f54_report_type_store(kobj, attr, buf, count);
 	if (retval < 0)
 		goto exit;
 
-	retval = synaptics_rmi4_f54_do_preparation_store(dev, attr, cmd, 1);
+	retval = synaptics_rmi4_f54_do_preparation_store(kobj, attr, cmd, 1);
 	if (retval < 0)
 		goto exit;
 
-	retval = synaptics_rmi4_f54_get_report_store(dev, attr, cmd, 1);
+	retval = synaptics_rmi4_f54_get_report_store(kobj, attr, cmd, 1);
 	if (retval < 0)
 		goto exit;
 
@@ -3175,8 +3190,8 @@ exit:
 	return retval;
 }
 
-static ssize_t synaptics_rmi4_f54_do_preparation_store(struct device *dev,
-		struct device_attribute *attr, const char *buf, size_t count)
+static ssize_t synaptics_rmi4_f54_do_preparation_store(struct kobject *kobj,
+		struct kobj_attribute *attr, const char *buf, size_t count)
 {
 	int retval;
 	unsigned long setting;
@@ -3218,8 +3233,8 @@ static ssize_t synaptics_rmi4_f54_do_preparation_store(struct device *dev,
 	return count;
 }
 
-static ssize_t synaptics_rmi4_f54_get_report_store(struct device *dev,
-		struct device_attribute *attr, const char *buf, size_t count)
+static ssize_t synaptics_rmi4_f54_get_report_store(struct kobject *kobj,
+		struct kobj_attribute *attr, const char *buf, size_t count)
 {
 	int retval;
 	unsigned char command;
@@ -3284,8 +3299,8 @@ static ssize_t synaptics_rmi4_f54_get_report_store(struct device *dev,
 }
 
 
-static ssize_t synaptics_rmi4_f54_do_afe_calibration_store(struct device *dev,
-		struct device_attribute *attr, const char *buf, size_t count)
+static ssize_t synaptics_rmi4_f54_do_afe_calibration_store(struct kobject *kobj,
+		struct kobj_attribute *attr, const char *buf, size_t count)
 {
 	int retval;
 	unsigned long setting;
@@ -3313,8 +3328,8 @@ static ssize_t synaptics_rmi4_f54_do_afe_calibration_store(struct device *dev,
 		return count;
 }
 
-static ssize_t synaptics_rmi4_f54_force_cal_store(struct device *dev,
-		struct device_attribute *attr, const char *buf, size_t count)
+static ssize_t synaptics_rmi4_f54_force_cal_store(struct kobject *kobj,
+		struct kobj_attribute *attr, const char *buf, size_t count)
 {
 	int retval;
 	unsigned char command;
@@ -3347,8 +3362,8 @@ static ssize_t synaptics_rmi4_f54_force_cal_store(struct device *dev,
 	return count;
 }
 
-static ssize_t synaptics_rmi4_f54_resume_touch_store(struct device *dev,
-		struct device_attribute *attr, const char *buf, size_t count)
+static ssize_t synaptics_rmi4_f54_resume_touch_store(struct kobject *kobj,
+		struct kobj_attribute *attr, const char *buf, size_t count)
 {
 	int retval;
 	unsigned char device_ctrl;
@@ -3448,14 +3463,14 @@ static ssize_t synaptics_rmi4_f54_resume_touch_store(struct device *dev,
 	return count;
 }
 
-static ssize_t synaptics_rmi4_f54_num_of_mapped_rx_show(struct device *dev,
-		struct device_attribute *attr, char *buf)
+static ssize_t synaptics_rmi4_f54_num_of_mapped_rx_show(struct kobject *kobj,
+		struct kobj_attribute *attr, char *buf)
 {
 	return snprintf(buf, PAGE_SIZE, "%u\n", f54->rx_assigned);
 }
 
-static ssize_t synaptics_rmi4_f54_num_of_mapped_tx_show(struct device *dev,
-		struct device_attribute *attr, char *buf)
+static ssize_t synaptics_rmi4_f54_num_of_mapped_tx_show(struct kobject *kobj,
+		struct kobj_attribute *attr, char *buf)
 {
 	return snprintf(buf, PAGE_SIZE, "%u\n", f54->tx_assigned);
 }
@@ -3539,8 +3554,8 @@ show_replicated_func_unsigned(control, reg_40, noise_control_3)
 show_store_replicated_func_unsigned(control, reg_36, axis1_comp)
 show_store_replicated_func_unsigned(control, reg_37, axis2_comp)
 
-static ssize_t synaptics_rmi4_f54_burst_count_show(struct device *dev,
-		struct device_attribute *attr, char *buf)
+static ssize_t synaptics_rmi4_f54_burst_count_show(struct kobject *kobj,
+		struct kobj_attribute *attr, char *buf)
 {
 	int retval;
 	int size = 0;
