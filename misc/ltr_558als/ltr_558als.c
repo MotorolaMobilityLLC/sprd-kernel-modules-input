@@ -615,9 +615,9 @@ static void ltr558_work(struct work_struct *work)
 			__pm_wakeup_event(ws, msecs_to_jiffies(WAKELOCK_TIMEOUT_WORK_MS));
 			ltr558_i2c_write_2_bytes(LTR558_PS_THRES_UP, ps_threshold_high);
 			ltr558_i2c_write_2_bytes(LTR558_PS_THRES_LOW, 0x0000);
-			input_report_abs(pls->input, ABS_DISTANCE, 1);
+			input_report_abs(pls->input, ABS_DISTANCE, 5);
 			input_sync(pls->input);
-			PRINT_INFO("PS = 1\n");
+			PRINT_INFO("PS = 5\n");
 		}
 	}
 	if ((0x03 == (status & 0x03)) && (LTR_PLS_MODE == LTR_PLS_553)) {/*is 553 PS*/
@@ -646,9 +646,9 @@ static void ltr558_work(struct work_struct *work)
 
 			ltr558_i2c_write_2_bytes(LTR558_PS_THRES_UP, ps_threshold_high);
 			ltr558_i2c_write_2_bytes(LTR558_PS_THRES_LOW, 0x0000);
-			input_report_abs(pls->input, ABS_DISTANCE, 1);
+			input_report_abs(pls->input, ABS_DISTANCE, 5);
 			input_sync(pls->input);
-			PRINT_INFO("PS = 1\n");
+			PRINT_INFO("PS = 5\n");
 		}
 	}
 	if (0x0c == (status & 0x0c)) {/*is ALS*/
