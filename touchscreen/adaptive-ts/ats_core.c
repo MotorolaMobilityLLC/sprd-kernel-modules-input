@@ -524,6 +524,7 @@ static int ts_register_input_dev(struct ts_data *pdata)
 {
 	int retval;
 	unsigned int i;
+	bool flag = false;
 	struct input_dev *input;
 	struct device *dev = &pdata->pdev->dev;
 
@@ -542,12 +543,14 @@ static int ts_register_input_dev(struct ts_data *pdata)
 	input_set_capability(input, EV_ABS, ABS_MT_POSITION_Y);
 	/* TODO report pressure */
 	/* input_set_capability(input, EV_ABS, ABS_MT_PRESSURE); */
-
-	if (ts_get_mode(pdata, TSMODE_CONTROLLER_EXIST)
-		&& ((pdata->controller->config & TSCONF_REPORT_TYPE_MASK)
-		!= TSCONF_REPORT_TYPE_1))
-		input_mt_init_slots(input, TS_MAX_POINTS, INPUT_MT_DIRECT);
-
+        flag = ((pdata->controller)&&(ts_get_mode(pdata, TSMODE_CONTROLLER_EXIST)
+			&& ((pdata->controller->config & TSCONF_REPORT_TYPE_MASK)
+			!= TSCONF_REPORT_TYPE_1)));
+	if (flag){
+		retval = input_mt_init_slots(input, TS_MAX_POINTS, INPUT_MT_DIRECT);
+		if (retval)
+		return retval;
+	}
 	input_set_abs_params(input, ABS_MT_POSITION_X, 0, pdata->width, 0, 0);
 	input_set_abs_params(input, ABS_MT_POSITION_Y, 0, pdata->height, 0, 0);
 	/* input_set_abs_params(input, ABS_MT_PRESSURE, 0, 255, 0, 0); */
