@@ -131,7 +131,11 @@ unsigned int mas_get_irq(struct platform_device *pdev)
 		MALOGE("gpio request error! ");
 		return 0;
 	}
-	gpio_direction_input(int_gpio);
+	status = gpio_direction_input(int_gpio);
+        if (status) {
+                MALOGE("gpio_direction_input failed\n");
+                return 0;
+       }
 	status = gpio_to_irq(int_gpio);
 	if (status < 0) {
 		MALOGE("gpio_to_irq failed\n");
@@ -171,12 +175,12 @@ int mas_set_enable_gpio(struct platform_device *pdev)
 	if (en_gpio < 0) {
 		MALOGD("en gpio not exist");
 		return 0;
-	}
+	 }
 	ret = gpio_request(en_gpio, "microarray_en");
 	if (ret < 0) {
 		MALOGE("en gpio request error! ");
 		return ret;
-	}
+	 }
 	ret = gpio_direction_output(en_gpio, 1);
 	if (ret < 0) {
 		MALOGE("en gpio set output error! ");
