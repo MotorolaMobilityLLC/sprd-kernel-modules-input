@@ -603,7 +603,7 @@ static int rmidev_init_device(struct synaptics_rmi4_data *rmi4_data)
 {
 	int retval;
 	dev_t dev_no;
-	unsigned char attr_count;
+	int attr_count;
 	struct rmidev_data *dev_data;
 	struct device *device_ptr;
 
@@ -640,18 +640,18 @@ static int rmidev_init_device(struct synaptics_rmi4_data *rmi4_data)
 		retval = register_chrdev_region(dev_no, 1, CHAR_DEVICE_NAME);
 	} else {
 		retval = alloc_chrdev_region(&dev_no, 0, 1, CHAR_DEVICE_NAME);
-		if (retval < 0) {
-			dev_err(&rmi4_data->i2c_client->dev,
-					"%s: Failed to allocate char device region\n",
-					__func__);
-			goto err_device_region;
-		}
-
-		rmidev_major_num = MAJOR(dev_no);
-		dev_dbg(&rmi4_data->i2c_client->dev,
-				"%s: Major number of rmidev = %d\n",
-				__func__, rmidev_major_num);
 	}
+
+	if (retval < 0) {
+		dev_err(&rmi4_data->i2c_client->dev,
+		"%s: Failed to allocate char device region\n",
+		__func__);
+		goto err_device_region;
+	}
+	rmidev_major_num = MAJOR(dev_no);
+	dev_dbg(&rmi4_data->i2c_client->dev,
+		"%s: Major number of rmidev = %d\n",
+		__func__, rmidev_major_num);
 
 	dev_data = kzalloc(sizeof(*dev_data), GFP_KERNEL);
 	if (!dev_data) {

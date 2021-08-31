@@ -2297,10 +2297,10 @@ static int synaptics_rmi4_alloc_fh(struct synaptics_rmi4_fn **fhandler,
 static int synaptics_rmi4_query_device(struct synaptics_rmi4_data *rmi4_data)
 {
 	int retval;
-	unsigned char ii;
 	unsigned char page_number;
 	unsigned char intr_count;
 	unsigned char f01_query[F01_STD_QUERY_LEN];
+	unsigned short ii;
 	unsigned short pdt_entry_addr;
 	unsigned short intr_addr;
 	bool was_in_bl_mode;
@@ -2693,7 +2693,7 @@ static int synaptics_rmi4_free_fingers(struct synaptics_rmi4_data *rmi4_data)
 static int synaptics_rmi4_reinit_device(struct synaptics_rmi4_data *rmi4_data)
 {
 	int retval;
-	unsigned char ii;
+	unsigned short ii;
 	unsigned short intr_addr;
 	struct synaptics_rmi4_fn *fhandler;
 	struct synaptics_rmi4_exp_fhandler *exp_fhandler;
@@ -3030,24 +3030,26 @@ static int synaptics_rmi4_parse_dt(struct device *dev,
 		struct synaptics_dsx_platform_data *board)
 {
 	struct device_node *pn;
+	int ret = 0;
 
 	if (!dev || !dev->of_node)
 		return -ENODEV;
 	pn = dev->of_node;
 
-	board->reset_gpio = of_get_gpio(pn, 0);
-	if (board->reset_gpio < 0) {
+	ret = of_get_gpio(pn, 0);
+	if (ret < 0) {
 		dev_err(dev,
 			"%s: Failed to get reset gpio\n", __func__);
 		return -ENODEV;
 	}
-
-	board->irq_gpio = of_get_gpio(pn, 1);
-	if (board->irq_gpio < 0) {
+	board->reset_gpio = ret;
+	ret = of_get_gpio(pn, 1);
+	if (ret < 0) {
 		dev_err(dev,
 			"%s: Failed to get int gpio\n", __func__);
 		return -ENODEV;
 	}
+	board->irq_gpio = ret;
 
 	board->reset_active_ms = DELAY_RESET_LOW;
 	board->reset_delay_ms = DELAY_BOOT_READY;

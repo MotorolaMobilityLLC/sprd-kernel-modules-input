@@ -2159,10 +2159,10 @@ static void set_report_size(void)
 static int set_interrupt(bool set)
 {
 	int retval;
-	unsigned char ii;
 	unsigned char zero = 0x00;
 	unsigned char *intr_mask;
 	unsigned short f01_ctrl_reg;
+	unsigned short ii;
 	struct synaptics_rmi4_data *rmi4_data = f54->rmi4_data;
 
 	intr_mask = rmi4_data->intr_mask;

@@ -1437,7 +1437,7 @@ static int fwu_write_f34_v7_partition_id(unsigned char cmd)
 {
 	int retval;
 	unsigned char base;
-	unsigned char partition;
+	unsigned char partition = 0;
 	struct synaptics_rmi4_data *rmi4_data = fwu->rmi4_data;
 
 	base = fwu->f34_fd.data_base_addr;
@@ -3646,9 +3646,16 @@ static int fwu_recovery_write_chunk(void)
 			chunk_size = F35_CHUNK_SIZE;
 
 		memset(buf, 0x00, F35_CHUNK_SIZE);
-		secure_memcpy(buf, sizeof(buf), chunk_ptr,
+		retval = secure_memcpy(buf, sizeof(buf), chunk_ptr,
 					fwu->image_size - bytes_written,
 					chunk_size);
+		if (retval < 0) {
+                         dev_err(&fwu->rmi4_data->i2c_client->dev,
+                                         "%s: Failed to copy data \n",
+                                         __func__);
+                         return retval;
+                 }
+
 
 		retval = fwu->fn_ptr->write(rmi4_data,
 				base + F35_CHUNK_DATA_OFFSET,
@@ -4205,7 +4212,7 @@ static void synaptics_rmi4_fwu_attn(struct synaptics_rmi4_data *rmi4_data,
 static int synaptics_rmi4_fwu_init(struct synaptics_rmi4_data *rmi4_data)
 {
 	int retval;
-	unsigned char attr_count;
+	int attr_count;
 	struct pdt_properties pdt_props;
 
 	if (fwu) {
