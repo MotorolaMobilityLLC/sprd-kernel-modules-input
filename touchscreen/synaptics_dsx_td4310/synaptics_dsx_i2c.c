@@ -820,8 +820,8 @@ static int synaptics_rmi4_i2c_read(struct synaptics_rmi4_data *rmi4_data,
 			if (left_len > 8)
 				retval = i2c_master_recv(client, pData, 8);
 			else
-				retval = i2c_master_recv(client, pData,
-							 left_len);
+				retval = i2c_master_recv(client, pData,left_len);
+
 			if (retval <= 0) {
 				dev_err(&client->dev,
 						"%s: I2C retry %d\n", __func__,
@@ -2992,6 +2992,34 @@ static ssize_t ts_input_name_show(struct device *dev,
 	return sprintf(buf, "%s\n", DRIVER_NAME);
 }
 
+static ssize_t ts_irq_eb_store(struct device *dev,
+                struct device_attribute *attr, const char *buf, size_t count)
+{
+        unsigned int enable;
+        struct synaptics_rmi4_data *rmi4_data = dev_get_drvdata(dev);
+
+        if (kstrtouint(buf, 10, &enable))
+                return -EINVAL;
+
+        if (enable == 1)
+		synaptics_rmi4_irq_enable(rmi4_data, true);
+        else if (enable == 0)
+		synaptics_rmi4_irq_enable(rmi4_data, false);
+        else
+                return -EINVAL;
+
+        return count;
+}
+
+static ssize_t ts_irq_eb_show(struct device *dev,
+                struct device_attribute *attr, char *buf)
+{
+        struct synaptics_rmi4_data *rmi4_data = dev_get_drvdata(dev);
+
+        return snprintf(buf, PAGE_SIZE, "%s\n",
+                        rmi4_data->irq_enabled?"enable":"disable");
+}
+
 static DEVICE_ATTR(product_id, 0664,
 	synaptics_rmi4_f34_configid_show,
 	synaptics_rmi4_store_error);
@@ -3002,6 +3030,7 @@ static DEVICE_ATTR(chip_id, 0664,
 	synaptics_rmi4_store_error);
 static DEVICE_ATTR(ts_suspend, 0664, NULL, synaptics_light_suspend_store);
 static DEVICE_ATTR(input_name, 0664, ts_input_name_show, NULL);
+static DEVICE_ATTR(ts_irq_eb, 0664, ts_irq_eb_show, ts_irq_eb_store);
 
 static irqreturn_t synaptics_rmi4_irq_handler(int irq, void *p)
 {
@@ -3019,6 +3048,7 @@ static struct attribute *synaptics_rmi4_attrs[] = {
 	attrify(chip_id),
 	attrify(ts_suspend),
 	attrify(input_name),
+	attrify(ts_irq_eb),
 	NULL,
 };
 
