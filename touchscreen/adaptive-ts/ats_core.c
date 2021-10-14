@@ -316,25 +316,41 @@ static int ts_report3(struct ts_data *pdata,
 	}
 
 	/* check for disappeared UP events */
-	for (i = 0; i < TS_MAX_POINTS; i++)
+	for (i = 0; i < TS_MAX_POINTS; i++){
+		cur = points + i;
+		if (cur->slot >= TS_MAX_POINTS) {
+			dev_err(dev, "invalid current slot number1: %u", cur->slot);
+			continue;
+		}
 		ts_fix_UP_if_needed(pdata,
 			&pdata->stashed_points[i], pdata->stashed_status[i],
 			&sync_key, &sync_abs);
-
+	}
 	/* record current point's status */
 	memset(pdata->stashed_status, 0, sizeof(pdata->stashed_status));
-	for (i = 0; i < counts; i++)
+	for (i = 0; i < counts; i++){
+		cur = points + i;
+		if (cur->slot >= TS_MAX_POINTS) {
+			dev_err(dev, "invalid current slot number2: %u", cur->slot);
+			continue;
+		}
 		pdata->stashed_status[points[i].slot] = TSSTASH_NEW;
-
+	}
 	if (sync_key || sync_abs) {
 		if (sync_abs)
 			input_report_key(pdata->input, BTN_TOUCH, btn_down);
 		input_sync(pdata->input);
 
 		/* record current point */
-		for (i = 0; i < counts; i++)
+		for (i = 0; i < counts; i++){
+			cur = points + i;
+			if (cur->slot >= TS_MAX_POINTS) {
+				dev_err(dev, "invalid current slot number3: %u", cur->slot);
+				continue;
+			}
 			memcpy(&pdata->stashed_points[points[i].slot],
 				&points[i], sizeof(struct ts_point));
+		}
 	}
 
 	return 0;
