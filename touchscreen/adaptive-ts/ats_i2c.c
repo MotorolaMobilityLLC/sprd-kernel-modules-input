@@ -11,6 +11,7 @@
 #define TS_I2C_MAX_BUF_LEN 250
 
 static struct i2c_client *g_client;
+static char current_mode[100];
 static DEFINE_MUTEX(i2c_mutex);
 
 /*
@@ -306,6 +307,54 @@ static struct ts_bus_access ts_i2c_bus_access = {
 	.bus_type = TSBUS_I2C,
 };
 
+
+static int get_current_mode(char *current_mode)
+{
+	struct device_node *np;
+	const char *cmd_line;
+	char *s = NULL;
+
+	int ret = 0;
+	np = of_find_node_by_path("/chosen");
+
+	if (!np) {
+		printk(KERN_ERR "Can't get the /chosen\n");
+		return -EIO;
+	}
+
+	ret = of_property_read_string(np, "bootargs", &cmd_line);
+	if (ret < 0) {
+		printk(KERN_ERR "Can't get the bootargs\n");
+		return ret;
+	}
+
+	s = strstr(cmd_line, "androidboot.mode=");
+
+	if(s){
+		s += sizeof("androidboot.mode");
+		while(*s != ' ')
+			*current_mode++ = *s++;
+		*current_mode = '\0';
+	}
+	return 0;
+}
+
+
+static void check_current_mode(struct device *dev)
+{
+	get_current_mode(current_mode);
+	dev_info(dev, "current_mode is %s\n",current_mode);
+	if(strstr(current_mode, "cali")){
+		ts_suspend(to_platform_device(dev), PMSG_SUSPEND);
+	}
+	else if(strstr(current_mode, "autotest")){
+		ts_suspend(to_platform_device(dev), PMSG_SUSPEND);
+	}
+	else if(strstr(current_mode, "normal")){
+
+	}
+}
+
 static int ts_i2c_probe(struct i2c_client *client, const struct i2c_device_id *id)
 {
 	if (!i2c_check_functionality(client->adapter, I2C_FUNC_I2C)) {
@@ -318,6 +367,7 @@ static int ts_i2c_probe(struct i2c_client *client, const struct i2c_device_id *i
 	ts_register_bus_dev(&client->dev);
 	g_client = client;
 
+	check_current_mode(&client->dev);
 	dev_info(&client->dev, "I2C device probe OK\n");
 	return 0;
 }

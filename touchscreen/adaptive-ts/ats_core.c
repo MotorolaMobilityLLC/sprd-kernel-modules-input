@@ -963,7 +963,7 @@ static int ts_isr_control(struct ts_data *pdata, bool _register)
 /*
  * suspend and turn off controller
  */
-static int ts_suspend(struct platform_device *pdev, pm_message_t state)
+int ts_suspend(struct platform_device *pdev, pm_message_t state)
 {
 	struct ts_data *pdata = platform_get_drvdata(pdev);
 	struct device *dev = &pdev->dev;
@@ -1005,7 +1005,7 @@ static int ts_suspend(struct platform_device *pdev, pm_message_t state)
  * resume and turn on controller
  * TODO change to async way
  */
-static int ts_resume(struct platform_device *pdev)
+int ts_resume(struct platform_device *pdev)
 {
 	struct ts_data *pdata = platform_get_drvdata(pdev);
 	struct device *dev = &pdev->dev;
