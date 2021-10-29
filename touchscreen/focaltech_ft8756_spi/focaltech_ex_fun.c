@@ -579,6 +579,21 @@ static ssize_t fts_irq_store(struct device *dev,
 	return count;
 }
 
+static ssize_t ts_irq_eb_show(struct device *dev, struct device_attribute *attr,
+			    char *buf)
+{
+	FTS_INFO("ts_irq_eb_show\n");
+	return fts_irq_show(dev,attr,buf);
+}
+
+static ssize_t ts_irq_eb_store(struct device *dev,
+			     struct device_attribute *attr, const char *buf,
+			     size_t count)
+{
+	FTS_INFO("ts_irq_eb_store\n");
+	return fts_irq_store(dev,attr,buf,count);
+}
+
 /* fts_boot_mode interface */
 static ssize_t fts_bootmode_store(struct device *dev,
 				  struct device_attribute *attr,
@@ -1149,6 +1164,7 @@ static DEVICE_ATTR(fts_dump_reg, 0644, fts_dumpreg_show,
 static DEVICE_ATTR(fts_hw_reset, 0644, fts_hw_reset_show,
 		   fts_hw_reset_store);
 static DEVICE_ATTR(fts_irq, 0644, fts_irq_show, fts_irq_store);
+static DEVICE_ATTR(ts_irq_eb, 0644, ts_irq_eb_show, ts_irq_eb_store);
 static DEVICE_ATTR(fts_boot_mode, 0644, fts_bootmode_show,
 		   fts_bootmode_store);
 static DEVICE_ATTR(fts_touch_point, 0644, fts_tpbuf_show,
@@ -1174,6 +1190,7 @@ static struct attribute *fts_attributes[] = {
 	&dev_attr_fts_driver_info.attr,
 	&dev_attr_fts_hw_reset.attr,
 	&dev_attr_fts_irq.attr,
+	&dev_attr_ts_irq_eb.attr,
 	&dev_attr_fts_boot_mode.attr,
 	&dev_attr_fts_touch_point.attr,
 	&dev_attr_fts_log_level.attr,
