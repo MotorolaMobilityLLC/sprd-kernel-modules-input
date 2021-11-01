@@ -43,7 +43,7 @@ int hy_ver_major = 0;
 #endif
 
 unsigned int ssd20xx_tp_report_panel_dead = 0;
-
+static char phys[32] = {0};
 int init_ds_flag = 0;
 int init_tmc_flag = 0;
 #if defined(SUPPORT_BOOTUP_FORCE_FW_UPGRADE_BINFILE)
@@ -4043,7 +4043,6 @@ static int solomon_probe(struct i2c_client *client,
 	struct solomon_config *ftconfig = NULL;
 	struct workqueue_struct *wq = NULL;
 	int err = 0;
-	char phys[32] = {0,};
 	int i = 0;
 	struct device *dev= &client->dev;
 	struct device_node *np = dev->of_node;
