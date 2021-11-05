@@ -1767,8 +1767,6 @@ static int ts_probe(struct platform_device *pdev)
 		} else {
 			ts_set_mode(pdata, TSMODE_CONTROLLER_STATUS, true);
 		}
-		if (pdata->board->suspend_on_init)
-			ts_suspend(pdata->pdev, PMSG_SUSPEND);
 	} else {
 		dev_warn(dev, "no matched controller found!");
 	}
@@ -1836,6 +1834,8 @@ static int ts_probe(struct platform_device *pdev)
 	pr_info("ts platform device probe OK");
 	pdata->upgrade_lock = wakeup_source_create("ats__wakelock");
 	wakeup_source_add(pdata->upgrade_lock);
+	if (pdata->board->suspend_on_init && pdata->controller)
+		ts_suspend(pdata->pdev, PMSG_SUSPEND);
 	return 0;
 }
 
@@ -1852,15 +1852,11 @@ static int ts_remove(struct platform_device *pdev)
 
 	cancel_work_sync(&pdata->notifier_work);
 	destroy_workqueue(pdata->notifier_workqueue);
-
-	ts_filesys_remove(pdata);
-
-	ts_close_controller(pdata);
-
 	pdata->status = 0;
-
+        wakeup_source_remove(pdata->upgrade_lock);
 	wakeup_source_destroy(pdata->upgrade_lock);
-
+	ts_filesys_remove(pdata);
+	ts_close_controller(pdata);
 	return 0;
 }
 
