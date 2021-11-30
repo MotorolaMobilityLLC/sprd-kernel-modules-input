@@ -65,6 +65,7 @@
  * Global variable or extern global variabls/functions
  *****************************************************************************/
 struct fts_ts_data *fts_data;
+volatile bool tp_spi_safaMode = false;
 
 /*****************************************************************************
  * Static function prototypes

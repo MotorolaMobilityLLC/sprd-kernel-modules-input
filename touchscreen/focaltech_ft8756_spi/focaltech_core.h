@@ -215,6 +215,7 @@ enum _FTS_BUS_TYPE {
  * Global variable or extern global variabls/functions
  *****************************************************************************/
 extern struct fts_ts_data *fts_data;
+extern volatile bool tp_spi_safaMode;
 
 /* communication interface */
 int fts_read(u8 *cmd, u32 cmdlen, u8 *data, u32 datalen);

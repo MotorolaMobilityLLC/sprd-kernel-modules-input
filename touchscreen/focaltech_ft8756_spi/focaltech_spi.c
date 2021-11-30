@@ -49,6 +49,7 @@
 
 #define SPI_DUMMY_BYTE              3
 #define SPI_HEADER_LENGTH           6   /*CRC*/
+#define TUI_EXIT_DELAY 25
 /*****************************************************************************
  * Private enumerations, structures and unions using typedef
  *****************************************************************************/
@@ -79,6 +80,19 @@ static int fts_spi_transfer(u8 *tx_buf, u8 *rx_buf, u32 len)
         .rx_buf = rx_buf,
         .len    = len,
     };
+    int iRtyCount = TUI_EXIT_DELAY;
+    while(iRtyCount){
+        if(!tp_spi_safaMode){
+            break;
+        }
+        mdelay(200);
+        FTS_ERROR("irqEnable:%d iRtyCount:%d", tp_spi_safaMode, iRtyCount);
+        if(--iRtyCount <= 0){
+            FTS_ERROR("spi in safe mode!");
+            dump_stack();
+            return -EIO;
+        }
+    }
 
     spi_message_init(&msg);
     spi_message_add_tail(&xfer, &msg);

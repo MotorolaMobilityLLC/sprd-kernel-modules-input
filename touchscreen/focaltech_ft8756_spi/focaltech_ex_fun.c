@@ -571,9 +571,11 @@ static ssize_t fts_irq_store(struct device *dev,
 	if (FTS_SYSFS_ECHO_ON(buf)) {
 		FTS_INFO("enable irq");
 		fts_irq_enable();
+		tp_spi_safaMode = false;
 	} else if (FTS_SYSFS_ECHO_OFF(buf)) {
 		FTS_INFO("disable irq");
 		fts_irq_disable();
+		tp_spi_safaMode = true;
 	}
 	mutex_unlock(&input_dev->mutex);
 	return count;
@@ -1164,7 +1166,7 @@ static DEVICE_ATTR(fts_dump_reg, 0644, fts_dumpreg_show,
 static DEVICE_ATTR(fts_hw_reset, 0644, fts_hw_reset_show,
 		   fts_hw_reset_store);
 static DEVICE_ATTR(fts_irq, 0644, fts_irq_show, fts_irq_store);
-static DEVICE_ATTR(ts_irq_eb, 0644, ts_irq_eb_show, ts_irq_eb_store);
+static DEVICE_ATTR(ts_irq_eb, 0664, ts_irq_eb_show, ts_irq_eb_store);
 static DEVICE_ATTR(fts_boot_mode, 0644, fts_bootmode_show,
 		   fts_bootmode_store);
 static DEVICE_ATTR(fts_touch_point, 0644, fts_tpbuf_show,
