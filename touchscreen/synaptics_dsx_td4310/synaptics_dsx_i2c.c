@@ -132,10 +132,10 @@
 #define F12_WAKEUP_GESTURE_MODE 0x02
 
 #define F12_UDG_DETECT 0x0f
-
+#define TUI_EXIT_DELAY 25
 static DECLARE_WAIT_QUEUE_HEAD(waiter);
 DEFINE_MUTEX(rmi4_report_mutex);
-
+static volatile bool tp_i2c_safaMode = false;
 /* for 0D button */
 static unsigned int cap_button_codes[] = {
 	KEY_APPSELECT,
@@ -804,8 +804,21 @@ static int synaptics_rmi4_i2c_read(struct synaptics_rmi4_data *rmi4_data,
 	int retval = 0;
 	int left_len = length;
 	struct i2c_client *client = rmi4_data->i2c_client;
-
+	int iRtyCount = TUI_EXIT_DELAY;
+	while(iRtyCount){
+		if(!tp_i2c_safaMode)
+			break;
+		mdelay(200);
+		dev_warn(&rmi4_data->i2c_client->dev,
+			"F:%s L:%d irqEnable:%d iRtyCount:%d\n",
+			__func__, __LINE__, tp_i2c_safaMode, iRtyCount);
+		if(--iRtyCount <= 0){
+			dump_stack();
+			return -EIO;
+		}
+	}
 	/* u16 old_flag; */
+
 	mutex_lock(&(rmi4_data->rmi4_io_ctrl_mutex));
 
 	retval = synaptics_rmi4_set_page(rmi4_data, addr);
@@ -868,7 +881,19 @@ static int synaptics_rmi4_i2c_write(struct synaptics_rmi4_data *rmi4_data,
 	u8 retry = 0;
 	u8 *buf;
 	struct i2c_client *client = rmi4_data->i2c_client;
-
+	int iRtyCount = TUI_EXIT_DELAY;
+	while(iRtyCount){
+		if(!tp_i2c_safaMode)
+			break;
+		mdelay(200);
+		dev_warn(&rmi4_data->i2c_client->dev,
+			"F:%s L:%d irqEnable:%d iRtyCount:%d\n",
+			__func__, __LINE__, tp_i2c_safaMode, iRtyCount);
+		if(--iRtyCount <= 0){
+			dump_stack();
+			return -EIO;
+		}
+	}
 	mutex_lock(&(rmi4_data->rmi4_io_ctrl_mutex));
 
 	retval = synaptics_rmi4_set_page(rmi4_data, addr);
@@ -3001,10 +3026,14 @@ static ssize_t ts_irq_eb_store(struct device *dev,
         if (kstrtouint(buf, 10, &enable))
                 return -EINVAL;
 
-        if (enable == 1)
+	if (enable == 1){
+		tp_i2c_safaMode = false;
 		synaptics_rmi4_irq_enable(rmi4_data, true);
-        else if (enable == 0)
+	}
+        else if (enable == 0){
+		tp_i2c_safaMode = true;
 		synaptics_rmi4_irq_enable(rmi4_data, false);
+	}
         else
                 return -EINVAL;
 
