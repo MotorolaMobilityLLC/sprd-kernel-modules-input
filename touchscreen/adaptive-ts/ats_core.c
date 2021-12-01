@@ -17,6 +17,7 @@
 
 /* spinlock used to enable/disable irq */
 static DEFINE_SPINLOCK(g_irqlock);
+static char current_mode[100];
 
 static inline int ts_get_mode(
 	struct ts_data *pdata, unsigned int mode)
@@ -1715,6 +1716,52 @@ static void ts_filesys_remove(struct ts_data *pdata)
 	sysfs_remove_group(&pdata->pdev->dev.kobj, &ts_debug_attr_group);
 }
 
+static int get_current_mode(char *current_mode)
+{
+	struct device_node *np;
+	const char *cmd_line;
+	char *s = NULL;
+
+	int ret = 0;
+	np = of_find_node_by_path("/chosen");
+
+	if (!np) {
+		printk(KERN_ERR "Can't get the /chosen\n");
+		return -EIO;
+	}
+
+	ret = of_property_read_string(np, "bootargs", &cmd_line);
+	if (ret < 0) {
+		printk(KERN_ERR "Can't get the bootargs\n");
+		return ret;
+	}
+
+	s = strstr(cmd_line, "androidboot.mode=");
+
+	if(s){
+		s += sizeof("androidboot.mode");
+		while(*s != ' ')
+			*current_mode++ = *s++;
+		*current_mode = '\0';
+	}
+	return 0;
+}
+
+static void check_current_mode(struct device *dev)
+{
+	get_current_mode(current_mode);
+	dev_info(dev, "current_mode is %s\n",current_mode);
+	if(strstr(current_mode, "cali")){
+		ts_suspend(to_platform_device(dev), PMSG_SUSPEND);
+	}
+	else if(strstr(current_mode, "autotest")){
+		ts_suspend(to_platform_device(dev), PMSG_SUSPEND);
+	}
+	else if(strstr(current_mode, "normal")){
+
+	}
+}
+
 static int ts_probe(struct platform_device *pdev)
 {
 	int retval;
@@ -1834,8 +1881,11 @@ static int ts_probe(struct platform_device *pdev)
 	pr_info("ts platform device probe OK");
 	pdata->upgrade_lock = wakeup_source_create("ats__wakelock");
 	wakeup_source_add(pdata->upgrade_lock);
-	if (pdata->board->suspend_on_init && pdata->controller)
+	if (pdata->board->suspend_on_init && pdata->controller){
 		ts_suspend(pdata->pdev, PMSG_SUSPEND);
+	}
+
+	check_current_mode(dev);
 	return 0;
 }
 

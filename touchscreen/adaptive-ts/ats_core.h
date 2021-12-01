@@ -245,8 +245,6 @@ struct ts_data {
 /*
  * initialize I2C device
  */
-int ts_suspend(struct platform_device *pdev, pm_message_t state);
-int ts_resume(struct platform_device *pdev);
 int ts_i2c_init(struct device_node *, unsigned short *);
 void ts_i2c_exit(void);
 
