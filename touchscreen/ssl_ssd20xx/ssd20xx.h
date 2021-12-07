@@ -114,7 +114,7 @@
 #define PASS_DATA_FORCE_UP_MASK		0x40	/* force up */
 
 #define PASS_DATA_ID_AXIS_FIRST	0x00
-#define PASS_DATA_ID_AXIS_LAST	0x0E
+#define PASS_DATA_ID_AXIS_LAST	0x09
 #define PASS_DATA_ID_KEY	0xF5
 #define PASS_DATA_ID_GESTURE	0xF6
 #define PASS_DATA_ID_AUX	0xF8	/* aux */
