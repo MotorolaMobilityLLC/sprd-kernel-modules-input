@@ -1592,6 +1592,45 @@ static ssize_t ts_suspend_store(struct device *dev,
 
 static DEVICE_ATTR_RW(ts_suspend);
 
+static ssize_t ts_irq_eb_store(struct device *dev,
+                struct device_attribute *attr, const char *buf, size_t count)
+{
+	unsigned int enable;
+	struct ts_data *pdata = platform_get_drvdata(to_platform_device(dev));
+
+	if (kstrtouint(buf, 10, &enable))
+		return -EINVAL;
+	if (enable == 1){
+		tp_i2c_safaMode = false;
+		ts_enable_irq(pdata, true);
+	}
+	else if (enable == 0){
+		tp_i2c_safaMode = true;
+		ts_enable_irq(pdata, false);
+	}
+	else
+		return -EINVAL;
+
+	return count;
+}
+
+static ssize_t ts_irq_eb_show(struct device *dev,
+                struct device_attribute *attr, char *buf)
+{
+	struct ts_data *pdata = platform_get_drvdata(to_platform_device(dev));
+	pdata->irq = gpio_to_irq(pdata->board->int_gpio);
+	return snprintf(buf, PAGE_SIZE, "%s\n",
+		pdata->irq?"enable":"disable");
+}
+
+static struct device_attribute dev_attr_ts_irq_eb = {
+	.attr = {
+		.name = "ts_irq_eb",
+		.mode = S_IWUSR | S_IWGRP |S_IRUGO,
+	},
+	.show = ts_irq_eb_show,
+	.store = ts_irq_eb_store,
+};
 static struct attribute *ts_debug_attrs[] = {
 	&dev_attr_debug_level.attr,
 	&dev_attr_mode.attr,
@@ -1606,6 +1645,7 @@ static struct attribute *ts_debug_attrs[] = {
 	&dev_attr_controller_info.attr,
 	&dev_attr_ui_info.attr,
 	&dev_attr_ts_suspend.attr,
+	&dev_attr_ts_irq_eb.attr,
 	NULL,
 };
 

@@ -236,7 +236,7 @@ struct ts_data {
 	enum ts_stashed_status stashed_status[TS_MAX_POINTS];
 	bool suspend;
 };
-
+extern volatile bool tp_i2c_safaMode;
 
 /* ================================================== *
  *                    functions                       *

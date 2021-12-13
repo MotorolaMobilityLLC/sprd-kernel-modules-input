@@ -9,10 +9,11 @@
 #define TS_DEFAULT_SLAVE_REG_WIDTH 1
 #define TS_MAX_SLAVE_REG_WIDTH 2
 #define TS_I2C_MAX_BUF_LEN 250
+#define TUI_EXIT_DELAY 25
 
 static struct i2c_client *g_client;
 static DEFINE_MUTEX(i2c_mutex);
-
+volatile bool tp_i2c_safaMode = false;
 /*
  * send msgs to adapter, retry must not be negative
  */
@@ -194,6 +195,7 @@ static int ts_i2c_read(
 	unsigned char addr_buf[TS_I2C_MAX_BUF_LEN];
 	struct ts_bus_access *bus;
 	struct i2c_client *i2c = g_client;
+	int iRtyCount = TUI_EXIT_DELAY;
 	struct i2c_msg msgs[] = {
 		{
 			.flags = 0,
@@ -220,6 +222,17 @@ static int ts_i2c_read(
 	msgs[0].len = bus->reg_width;
 	msgs[1].addr = i2c->addr;
 
+	while(iRtyCount){
+		if(!tp_i2c_safaMode)
+			break;
+		mdelay(200);
+		pr_warn("F:%s L:%d irqEnable:%d iRtyCount:%d\n",
+			__func__, __LINE__, tp_i2c_safaMode, iRtyCount);
+		if(--iRtyCount <= 0){
+			WARN(1, "%s: Micro-assembler field overflow\n", __func__);
+			return -EIO;
+		}
+	}
 	while (index < length) {
 		tx_length = length - index;
 		if (tx_length > max_length)
@@ -252,6 +265,7 @@ static int ts_i2c_write(
 	unsigned char buf[TS_I2C_MAX_BUF_LEN];
 	struct ts_bus_access *bus;
 	struct i2c_client *i2c = g_client;
+	int iRtyCount = TUI_EXIT_DELAY;
 	struct i2c_msg msgs[] = {
 		{
 			.flags = 0,
@@ -272,7 +286,17 @@ static int ts_i2c_write(
 
 	max_length = TS_I2C_MAX_BUF_LEN - bus->reg_width;
 	msgs[0].addr = i2c->addr;
-
+	while(iRtyCount){
+		if(!tp_i2c_safaMode)
+			break;
+		mdelay(200);
+		pr_warn("F:%s L:%d irqEnable:%d iRtyCount:%d\n",
+			__func__, __LINE__, tp_i2c_safaMode, iRtyCount);
+		if(--iRtyCount <= 0){
+			WARN(1, "%s: Micro-assembler field overflow\n", __func__);
+			return -EIO;
+		}
+	}
 	while (index < length) {
 		tx_length = length - index;
 		if (tx_length > max_length)
