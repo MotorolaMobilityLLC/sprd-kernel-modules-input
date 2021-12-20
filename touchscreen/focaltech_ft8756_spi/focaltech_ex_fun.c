@@ -576,6 +576,7 @@ static ssize_t fts_irq_store(struct device *dev,
 		FTS_INFO("disable irq");
 		fts_irq_disable();
 		tp_spi_safaMode = true;
+		tp_spi_ignSafeModeIrq = true;
 	}
 	mutex_unlock(&input_dev->mutex);
 	return count;

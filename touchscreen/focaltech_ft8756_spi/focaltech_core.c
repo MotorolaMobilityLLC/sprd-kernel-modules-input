@@ -66,6 +66,7 @@
  *****************************************************************************/
 struct fts_ts_data *fts_data;
 volatile bool tp_spi_safaMode = false;
+volatile bool tp_spi_ignSafeModeIrq = false;
 
 /*****************************************************************************
  * Static function prototypes
@@ -707,6 +708,11 @@ static void fts_irq_read_report(void)
 
 static irqreturn_t fts_irq_handler(int irq, void *data)
 {
+	if(true == tp_spi_ignSafeModeIrq){
+		tp_spi_ignSafeModeIrq = false;
+		FTS_INFO("Ignore safe mode irq!");
+		return IRQ_HANDLED;
+	}
 	fts_irq_read_report();
 	return IRQ_HANDLED;
 }
@@ -1476,7 +1482,6 @@ static int fts_ts_probe_entry(struct fts_ts_data *ts_data)
 	} else {
 		sched_setscheduler(ts_data->resume.resume_thread, SCHED_FIFO, &param);
 	}
-
 	FTS_FUNC_EXIT();
 	return 0;
 

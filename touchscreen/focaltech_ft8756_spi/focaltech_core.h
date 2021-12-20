@@ -216,6 +216,7 @@ enum _FTS_BUS_TYPE {
  *****************************************************************************/
 extern struct fts_ts_data *fts_data;
 extern volatile bool tp_spi_safaMode;
+extern volatile bool tp_spi_ignSafeModeIrq;
 
 /* communication interface */
 int fts_read(u8 *cmd, u32 cmdlen, u8 *data, u32 datalen);
