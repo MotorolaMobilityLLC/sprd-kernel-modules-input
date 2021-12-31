@@ -65,6 +65,7 @@
  * Global variable or extern global variabls/functions
  *****************************************************************************/
 struct fts_ts_data *fts_data;
+static char current_mode[100];
 volatile bool tp_spi_safaMode = false;
 volatile bool tp_spi_ignSafeModeIrq = false;
 
@@ -1719,6 +1720,53 @@ static struct spi_driver fts_ts_driver = {
 		   },
 	.id_table = fts_ts_id,
 };
+
+static int get_current_mode(char *current_mode)
+{
+	struct device_node *np;
+	const char *cmd_line;
+	char *s = NULL;
+
+	int ret = 0;
+	np = of_find_node_by_path("/chosen");
+
+	if (!np) {
+		printk(KERN_ERR "Can't get the /chosen\n");
+		return -EIO;
+	}
+
+	ret = of_property_read_string(np, "bootargs", &cmd_line);
+	if (ret < 0) {
+		printk(KERN_ERR "Can't get the bootargs\n");
+		return ret;
+	}
+
+	s = strstr(cmd_line, "androidboot.mode=");
+
+	if(s){
+		s += sizeof("androidboot.mode");
+		while(*s != ' ')
+			*current_mode++ = *s++;
+		*current_mode = '\0';
+	}
+	return 0;
+}
+
+void check_current_mode(void)
+{
+	struct fts_ts_data *ts_data = fts_data;
+	get_current_mode(current_mode);
+	FTS_INFO("current_mode is %s\n",current_mode);
+	if(strstr(current_mode, "cali")){
+		fts_ts_suspend(ts_data->dev);
+	}
+	else if(strstr(current_mode, "autotest")){
+		fts_ts_suspend(ts_data->dev);
+	}
+	else if(strstr(current_mode, "normal")){
+
+	}
+}
 
 static int __init fts_ts_init(void)
 {

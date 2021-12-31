@@ -1076,6 +1076,7 @@ static void fts_fwupg_work(struct work_struct *work)
 		ret = fts_read_reg(FTS_REG_CHIP_ID, &chip_id);
 		FTS_INFO("read chip id:0x%02x", chip_id);
 	}
+	check_current_mode();
 }
 
 int fts_fwupg_init(struct fts_ts_data *ts_data)

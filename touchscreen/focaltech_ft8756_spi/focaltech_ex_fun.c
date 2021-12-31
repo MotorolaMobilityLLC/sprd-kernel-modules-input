@@ -556,7 +556,9 @@ static ssize_t fts_irq_show(struct device *dev, struct device_attribute *attr,
 	ssize_t count = 0;
 	struct irq_desc *desc = irq_to_desc(fts_data->irq);
 
-	count = snprintf(buf, PAGE_SIZE, "irq_depth:%d\n", desc->depth);
+	if(desc){
+		count = snprintf(buf, PAGE_SIZE, "irq_depth:%d\n", desc->depth);
+	}
 
 	return count;
 }
