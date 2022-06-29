@@ -2993,6 +2993,15 @@ static ssize_t synaptics_rmi4_f01_product_id_show(struct device *dev,
 			(rmi4_data->rmi4_mod_info.product_id_string));
 }
 
+static ssize_t synaptics_light_suspend_show(struct device *dev,
+				  struct device_attribute *attr, char *buf)
+{
+	struct synaptics_rmi4_data *rmi4_data = dev_get_drvdata(dev);
+
+	return snprintf(buf, PAGE_SIZE, "%s\n",
+		rmi4_data->touch_stopped ? "true" : "false");
+}
+
 static ssize_t synaptics_light_suspend_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t count)
 {
@@ -3057,7 +3066,7 @@ static DEVICE_ATTR(firmware_version, 0664,
 static DEVICE_ATTR(chip_id, 0664,
 	synaptics_rmi4_f01_product_id_show,
 	synaptics_rmi4_store_error);
-static DEVICE_ATTR(ts_suspend, 0664, NULL, synaptics_light_suspend_store);
+static DEVICE_ATTR(ts_suspend, 0664, synaptics_light_suspend_show, synaptics_light_suspend_store);
 static DEVICE_ATTR(input_name, 0664, ts_input_name_show, NULL);
 static DEVICE_ATTR(ts_irq_eb, 0664, ts_irq_eb_show, ts_irq_eb_store);
 
@@ -3685,7 +3694,7 @@ static int __init synaptics_rmi4_init(void)
 		printk("%s() i2c_add_driver() ret = %d\n", __func__, ret);
 		return ret;
 	}
-
+	/*
 	ret = rmidev_module_init();
 	if (ret)
 		printk("%s() rmidev_module_init() ret = %d\n", __func__, ret);
@@ -3697,7 +3706,7 @@ static int __init synaptics_rmi4_init(void)
 	ret = rmi4_f54_module_init();
 	if (ret)
 		printk("%s() rmi4_f54_module_init() ret = %d\n", __func__, ret);
-
+	*/
 	return 0;	
 }
 

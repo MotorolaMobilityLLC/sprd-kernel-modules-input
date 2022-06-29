@@ -37,7 +37,7 @@
 
 //#define SUPPORT_GESTURE_DEMO	/* for gesture demo. relative MainTAG */
 
-#define ENABLE_GESTURE     /* Gesture proc control */
+//#define ENABLE_GESTURE     /* Gesture proc control */
 #define SUPPORT_MT_PROTOCOL_B /* Default support protocol B, remarks to support protocol A */
 #define SUPPORT_REPEAT_GESTURE_REPORT /* Report gesture as long as it's still in LPM */
 //#define SUPPORT_DELAYED_TOUCH_POWER_UP /* Allow probe to pass through and wait for TMC to wakeup */

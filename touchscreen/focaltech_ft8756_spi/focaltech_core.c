@@ -1418,9 +1418,9 @@ static int fts_ts_probe_entry(struct fts_ts_data *ts_data)
 		goto err_irq_req;
 	}
 
-	ret = fts_create_apk_debug_channel(ts_data);
-	if (ret)
-		FTS_ERROR("create apk debug node fail");
+	//ret = fts_create_apk_debug_channel(ts_data);
+	//if (ret)
+	//	FTS_ERROR("create apk debug node fail");
 
 	ret = fts_create_sysfs(ts_data);
 	if (ret)
@@ -1520,7 +1520,7 @@ static int fts_ts_remove_entry(struct fts_ts_data *ts_data)
 	fts_point_report_check_exit(ts_data);
 #endif
 
-	fts_release_apk_debug_channel(ts_data);
+	//fts_release_apk_debug_channel(ts_data);
 	fts_remove_sysfs(ts_data);
 	fts_ex_mode_exit(ts_data);
 
@@ -1627,7 +1627,7 @@ int fts_ts_resume(struct device *dev)
 #if FTS_POWER_SOURCE_CUST_EN
 		fts_power_source_resume(ts_data);
 #endif
-		fts_reset_proc(5);
+		fts_reset_proc(50);
 	}
 
 	fts_wait_tp_to_valid();
@@ -1656,6 +1656,7 @@ static int fts_ts_probe(struct spi_device *spi)
 	FTS_INFO("Touch Screen(SPI BUS) driver prboe...");
 	spi->mode = SPI_MODE_0;
 	spi->bits_per_word = 8;
+	spi->max_speed_hz = FTS_MAX_SPI_SPEED;
 	ret = spi_setup(spi);
 	if (ret) {
 		FTS_ERROR("spi setup fail");

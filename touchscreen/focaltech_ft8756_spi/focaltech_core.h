@@ -104,6 +104,7 @@
 #define FTX_MAX_COMPATIBLE_TYPE	4
 #define FTX_MAX_COMMMAND_LENGTH	16
 
+#define FTS_MAX_SPI_SPEED	6000000
 /*****************************************************************************
  * Private enumerations, structures and unions using typedef
  *****************************************************************************/
@@ -236,8 +237,8 @@ int fts_gesture_suspend(struct fts_ts_data *ts_data);
 int fts_gesture_resume(struct fts_ts_data *ts_data);
 
 /* Apk and functions */
-int fts_create_apk_debug_channel(struct fts_ts_data *ts_data);
-void fts_release_apk_debug_channel(struct fts_ts_data *ts_data);
+//int fts_create_apk_debug_channel(struct fts_ts_data *ts_data);
+//void fts_release_apk_debug_channel(struct fts_ts_data *ts_data);
 
 /* ADB functions */
 int fts_create_sysfs(struct fts_ts_data *ts_data);

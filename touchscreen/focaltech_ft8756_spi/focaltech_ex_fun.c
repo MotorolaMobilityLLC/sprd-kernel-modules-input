@@ -488,6 +488,7 @@ proc_read_err:
 }
 #endif
 
+/*
 int fts_create_apk_debug_channel(struct fts_ts_data *ts_data)
 {
 	struct ftxxxx_proc *proc = &ts_data->proc;
@@ -523,7 +524,7 @@ void fts_release_apk_debug_channel(struct fts_ts_data *ts_data)
 #endif
 	}
 }
-
+*/
 /************************************************************************
  * sysfs interface
  ***********************************************************************/
