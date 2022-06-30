@@ -204,7 +204,11 @@ static int get_queue(struct solomon_data *ftdata)
  */
 void ts_enable_irq(void)
 {
-	enable_irq(misc_dev->irq);
+	struct irq_desc *irq_desc = irq_to_desc(misc_dev->irq);
+	if(irq_desc->depth)
+		enable_irq(misc_dev->irq);
+	else
+		printk("ts irq has been enabled irq_desc->depth:%d\n", irq_desc->depth);
 }
 
 /**
@@ -213,7 +217,11 @@ void ts_enable_irq(void)
  */
 void ts_disable_irq(void)
 {
-	disable_irq(misc_dev->irq);
+	struct irq_desc *irq_desc = irq_to_desc(misc_dev->irq);
+	if(!irq_desc->depth)
+		disable_irq(misc_dev->irq);
+	else
+		printk("ts irq has been disenabled irq_desc->depth:%d\n", irq_desc->depth);
 }
 
 #ifdef SUPPORT_ESD_CHECKSUM
@@ -1176,11 +1184,6 @@ static int ds_process_version(struct solomon_device *ftdev)
 	if (ret < 0)
 		return ret;
 
-	SOLOMON_WARNNING("[0] 0x%04x", version[0]);
-	SOLOMON_WARNNING("[1] 0x%04x", version[1]);
-	SOLOMON_WARNNING("[2] 0x%04x", version[2]);
-	SOLOMON_WARNNING("[3] 0x%04x", version[3]);
-	SOLOMON_WARNNING("[4] 0x%04x", version[4]);
 	/* SSD20XX ES1 */
 	if (version[0] == 0x055D && version[1] == 0x2098 &&
 		version[2] == 0x0001 && version[3] == 0x2015 &&
@@ -1193,7 +1196,6 @@ static int ds_process_version(struct solomon_device *ftdev)
 	else
 		ftdev->es_version = DS_VERSION_ES1;
 
-	SOLOMON_WARNNING("ES Version : %d", ftdev->es_version);
 	return 0;
 }
 #endif
@@ -1270,8 +1272,6 @@ static s32 solomon_set_esdtime(struct solomon_device *ftdev, u16 value)
 {
 	int err;
 
-	SOLOMON_WARNNING("ESD Time : %d", value);
-
 	err = ts_write_data(ftdev->client,
 			 SOLOMON_ESD_TIME, (u8 *)&(value), 2);
 
@@ -1285,8 +1285,6 @@ static s32 solomon_set_esdtime(struct solomon_device *ftdev, u16 value)
 static s32 solomon_set_AFE_limit(struct solomon_device *ftdev, u16 max_value, u16 min_value)
 {
         int err;
-
-        SOLOMON_WARNNING("AFE limit : %d to %d", min_value, max_value);
 
         err = ts_write_data(ftdev->client,
                         SOLOMON_AFE_MAX_LIMIT, (u8 *)&(max_value), 2);
@@ -2064,7 +2062,6 @@ static int solomon_pre_init(struct solomon_device *ftdev)
 #if 0//dragonboard 410c
 	wait_labibb_reset = 0;
 #endif
-	SOLOMON_WARNNING("read boot st read(2) : 0x%04x", ftdev->boot_flag);
 
 	if (ds_init_code(ftdev->client) < 0)
 		return -1;
@@ -3159,7 +3156,6 @@ retry_snl:
 				return err;
 #ifdef SUPPORT_ES2
 			} else if (aux == AUX_BOOTUP_RESET) {
-				SOLOMON_WARNNING("Aux bootup reset");
 				solomon_report_release(ftdev);
 				err = solomon_pre_init(ftdev);
 
@@ -3213,7 +3209,6 @@ retry_snl:
 
 #ifdef STATUS_CHECK_BOOT_ST
 	if ((status & STATUS_CHECK_BOOT_ST) == STATUS_CHECK_BOOT_ST) {
-		SOLOMON_WARNNING("Need TMC config initialize.");
 		solomon_report_release(ftdev);
 		err = solomon_init_config(ftdev);
 
@@ -4144,12 +4139,6 @@ static int solomon_probe(struct i2c_client *client,
 	SOLOMON_DEBUG("#### TOUCH DRIVER PROBE 2 ####");
 	init_ds_flag = 1;
 	init_tmc_flag = 1;
-	err = solomon_boot_sequence(ftdev);
-
-#ifndef SUPPORT_DELAYED_TOUCH_POWER_UP
-	if (err < 0)
-		goto init_config_failed;
-#endif
 
 	/* esd timer */
 #if ESD_TIMER_ENABLE
@@ -4209,6 +4198,12 @@ static int solomon_probe(struct i2c_client *client,
 		pr_err("Irq request failed, ret: %d", err);
 		goto irq_request_failed;
 	}
+	err = solomon_boot_sequence(ftdev);
+
+#ifndef SUPPORT_DELAYED_TOUCH_POWER_UP
+	if (err < 0)
+		goto init_config_failed;
+#endif
 
 	sema_init(&ftdev->raw_data_lock, 1);
 	err = misc_register(&touch_misc_dev);
@@ -4413,7 +4408,6 @@ static int solomon_resume(struct device *dev)
 	else
 		ftdev = misc_dev;
 
-	SOLOMON_WARNNING(">>>> %s solomon resume start!!!", __func__);
 	ssd20xx_tp_report_panel_dead = 0;
 
 	solomon_set_sleepout(ftdev);

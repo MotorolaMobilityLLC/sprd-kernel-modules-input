@@ -663,7 +663,6 @@ int ds16_seeprom_read_nbyte(struct solomon_device *dev, u32 st, u8 *data_buf,
 	int read_length = 0;
 	int add_index = 0;
 
-	SOLOMON_WARNNING("read nbyte");
 	data_length = nbyte;
 
 	for (data_length = nbyte; data_length > 0;
@@ -1069,7 +1068,6 @@ static int ds16_seeprom_fw_ds_read_version(struct solomon_device *dev,
 			break;
 	} while ((retry--) > 0);
 
-	SOLOMON_WARNNING("err : 0x%08x \t VERSION : 0x%08x", err, *version);
 
 	return err;
 }

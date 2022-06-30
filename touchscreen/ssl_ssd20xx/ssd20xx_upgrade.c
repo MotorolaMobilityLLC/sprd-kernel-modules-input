@@ -779,26 +779,6 @@ int solomon_free_header(struct solomon_device *dev)
 static int solomon_firmware_version_check(struct solomon_device *dev,
 		struct solomon_fw_group_header *fw_header)
 {
-	SOLOMON_WARNNING("PRODUCT ID E:0x%08x 0x%08x / H:0x%08x 0x%08x",
-			dev->fw_version.productID01,
-			dev->fw_version.productID02,
-			fw_header->fw_version.productID01,
-			fw_header->fw_version.productID02);
-
-	SOLOMON_WARNNING("ICNAME E:0x%08x 0x%08x / H:0x%08x 0x%08x",
-			dev->fw_version.ICName01,
-			dev->fw_version.ICName02,
-			fw_header->fw_version.ICName01,
-			fw_header->fw_version.ICName02);
-
-	SOLOMON_WARNNING("DISPLAY VERSION  EFLASH : 0x%08x\t0x%08x",
-			dev->fw_version.display_version,
-			fw_header->fw_version.display_version);
-
-	SOLOMON_WARNNING("HIDDEN VERSION  EFLASH : 0x%08x\tHEADER : 0x%08x",
-			dev->fw_version.hidden_version,
-			fw_header->fw_version.hidden_version);
-
 	if (dev->fw_version.display_version == 0xFFFFFFFF &&
 			fw_header->fw_version.display_version != 0xFFFFFFFF)
 		goto update;
