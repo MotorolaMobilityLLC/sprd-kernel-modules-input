@@ -1243,6 +1243,14 @@ static int fts_parse_dt(struct device *dev, struct fts_ts_platform_data *pdata)
 	if (pdata->irq_gpio < 0)
 		FTS_ERROR("Unable to get irq_gpio");
 
+	ret = of_property_read_u32(np, "spi-max-frequency", &pdata->spi_max_frequency);
+	if (ret < 0) {
+		pdata->spi_max_frequency = FTS_MAX_SPI_SPEED;
+		FTS_ERROR("Unable to get spi-max-frequency, set default value %d\n", pdata->spi_max_frequency);
+	}else {
+		FTS_INFO("get spi-max-frequency, value = %d\n", pdata->spi_max_frequency);
+	}
+
 	ret = of_property_read_u32(np, "focaltech,max-touch-number", &temp_val);
 	if (ret < 0) {
 		FTS_ERROR("Unable to get max-touch-number, please check dts");
@@ -1654,14 +1662,6 @@ static int fts_ts_probe(struct spi_device *spi)
 	struct fts_ts_data *ts_data = NULL;
 
 	FTS_INFO("Touch Screen(SPI BUS) driver prboe...");
-	spi->mode = SPI_MODE_0;
-	spi->bits_per_word = 8;
-	spi->max_speed_hz = FTS_MAX_SPI_SPEED;
-	ret = spi_setup(spi);
-	if (ret) {
-		FTS_ERROR("spi setup fail");
-		return ret;
-	}
 
 	/* malloc memory for global struct variable */
 	ts_data = (struct fts_ts_data *)kzalloc(sizeof(*ts_data), GFP_KERNEL);
@@ -1683,6 +1683,18 @@ static int fts_ts_probe(struct spi_device *spi)
 		kfree_safe(ts_data);
 		return ret;
 	}
+
+	spi->mode = SPI_MODE_0;
+	spi->bits_per_word = 8;
+	spi->max_speed_hz = ts_data->pdata->spi_max_frequency;
+	FTS_INFO("start to spi_setup, spi->mode=%d,spi->bits_per_word=%d,spi->max_speed_hz=%d\n"
+			,spi->mode,spi->bits_per_word,spi->max_speed_hz);
+	ret = spi_setup(spi);
+	if (ret) {
+		FTS_ERROR("spi setup fail");
+		return ret;
+	}
+
 	fts_irq_enable();
 
 	FTS_INFO("Touch Screen(SPI BUS) driver prboe successfully");

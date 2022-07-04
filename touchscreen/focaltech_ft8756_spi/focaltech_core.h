@@ -104,7 +104,7 @@
 #define FTX_MAX_COMPATIBLE_TYPE	4
 #define FTX_MAX_COMMMAND_LENGTH	16
 
-#define FTS_MAX_SPI_SPEED	6000000
+#define FTS_MAX_SPI_SPEED	8000000
 /*****************************************************************************
  * Private enumerations, structures and unions using typedef
  *****************************************************************************/
@@ -136,6 +136,7 @@ struct fts_ts_platform_data {
 	u32 x_min;
 	u32 y_min;
 	u32 max_touch_number;
+	u32 spi_max_frequency;
 };
 
 struct ts_event {
