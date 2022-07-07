@@ -133,6 +133,7 @@
 
 #define F12_UDG_DETECT 0x0f
 #define TUI_EXIT_DELAY 25
+#define LCD_NAME "lcd_td4310_truly_mipi_fhd"
 static DECLARE_WAIT_QUEUE_HEAD(waiter);
 DEFINE_MUTEX(rmi4_report_mutex);
 static volatile bool tp_i2c_safaMode = false;
@@ -544,6 +545,7 @@ struct synaptics_rmi4_exp_fn_data {
 };
 
 static struct synaptics_rmi4_exp_fn_data exp_data;
+static char lcd_name[100];
 
 static struct device_attribute attrs[] = {
 	__ATTR(reset, 0660,
@@ -3208,7 +3210,36 @@ static int synaptics_rmi4_power_on(
 
 	return 0;
 }
+static int get_bootargs(char *current_mode, char *boot_param)
+{
+	struct device_node *np;
+	const char *cmd_line;
+	char *s = NULL;
 
+	int ret = 0;
+	np = of_find_node_by_path("/chosen");
+
+	if (!np) {
+		printk(KERN_ERR "Can't get the /chosen\n");
+		return -EIO;
+	}
+
+	ret = of_property_read_string(np, "bootargs", &cmd_line);
+	if (ret < 0) {
+		printk(KERN_ERR "Can't get the bootargs\n");
+		return ret;
+	}
+
+	s = strstr(cmd_line, boot_param);
+
+	if(s){
+		s += (sizeof(boot_param) + 1);
+		while(*s != ' ')
+			*current_mode++ = *s++;
+		*current_mode = '\0';
+	}
+	return 0;
+}
 /**
 * synaptics_rmi4_probe()
 *
@@ -3687,7 +3718,12 @@ void rmi4_f54_module_exit(void);
 static int __init synaptics_rmi4_init(void)
 {
 	int ret;
-	
+	get_bootargs(lcd_name,"lcd_name");
+	printk("%s() lcd_name %s\n",__func__,lcd_name);
+	if(!strstr(lcd_name, LCD_NAME)){
+		printk("%s: match %s fail,return\n",__func__,lcd_name);
+		return -EIO;
+	}
 	ret = i2c_add_driver(&synaptics_rmi4_driver);
 	if (ret)
 	{

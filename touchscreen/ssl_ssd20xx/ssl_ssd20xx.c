@@ -41,6 +41,7 @@
 #include <linux/hy-assist.h>
 int hy_ver_major = 0;
 #endif
+#define LCD_NAME "lcd_ssd2092_truly_mipi_fhd"
 
 unsigned int ssd20xx_tp_report_panel_dead = 0;
 static char phys[32] = {0};
@@ -142,7 +143,7 @@ int m_mp_needback;
 unsigned long m_point_skip_time;
 
 struct solomon_device *misc_dev;
-
+static char lcd_name[100];
 static struct class *touchscreen_class;
 u8 m_up_event[SOLOMON_MAX_POINT] = {0,};
 
@@ -4028,7 +4029,36 @@ static ssize_t slolmon_fw_ver_show(struct device *dev,struct device_attribute *a
 	return sprintf(buf, "%d\n",hy_ver_major);
 }
 #endif
+static int get_bootargs(char *current_mode, char *boot_param)
+{
+	struct device_node *np;
+	const char *cmd_line;
+	char *s = NULL;
 
+	int ret = 0;
+	np = of_find_node_by_path("/chosen");
+
+	if (!np) {
+		printk(KERN_ERR "Can't get the /chosen\n");
+		return -EIO;
+	}
+
+	ret = of_property_read_string(np, "bootargs", &cmd_line);
+	if (ret < 0) {
+		printk(KERN_ERR "Can't get the bootargs\n");
+		return ret;
+	}
+
+	s = strstr(cmd_line, boot_param);
+
+	if(s){
+		s += (sizeof(boot_param) + 1);
+		while(*s != ' ')
+			*current_mode++ = *s++;
+		*current_mode = '\0';
+	}
+	return 0;
+}
 static int solomon_probe(struct i2c_client *client,
 		const struct i2c_device_id *id)
 {
@@ -4568,6 +4598,12 @@ static int touch_solomon_init(void)
 {
 	int err = 0;
 
+	get_bootargs(lcd_name,"lcd_name");
+	pr_err("%s() lcd_name %s\n",__func__,lcd_name);
+	if(!strstr(lcd_name, LCD_NAME)){
+		pr_err("%s: match %s fail,return\n",__func__,lcd_name);
+		return -EIO;
+	}
 	err = i2c_add_driver(&solomon_driver);
 
 	if (err) {
