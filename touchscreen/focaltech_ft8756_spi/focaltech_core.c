@@ -1617,6 +1617,7 @@ int fts_ts_suspend(struct device *dev)
 
 	fts_release_all_finger();
 	ts_data->suspended = true;
+	fts_irq_disable();
 	FTS_FUNC_EXIT();
 	return 0;
 }
@@ -1651,6 +1652,7 @@ int fts_ts_resume(struct device *dev)
 		fts_gesture_resume(ts_data);
 
 	ts_data->suspended = false;
+	fts_irq_enable();
 	FTS_FUNC_EXIT();
 	return 0;
 }
