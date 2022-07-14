@@ -4602,7 +4602,7 @@ static int touch_solomon_init(void)
 	pr_err("%s() lcd_name %s\n",__func__,lcd_name);
 	if(!strstr(lcd_name, LCD_NAME)){
 		pr_err("%s: match %s fail,return\n",__func__,lcd_name);
-		return -EIO;
+		return 0;
 	}
 	err = i2c_add_driver(&solomon_driver);
 

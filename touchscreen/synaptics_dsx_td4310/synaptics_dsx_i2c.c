@@ -3722,7 +3722,7 @@ static int __init synaptics_rmi4_init(void)
 	printk("%s() lcd_name %s\n",__func__,lcd_name);
 	if(!strstr(lcd_name, LCD_NAME)){
 		printk("%s: match %s fail,return\n",__func__,lcd_name);
-		return -EIO;
+		return 0;
 	}
 	ret = i2c_add_driver(&synaptics_rmi4_driver);
 	if (ret)
