@@ -1660,7 +1660,6 @@ static int fts_ts_probe(struct spi_device *spi)
 {
 	int ret = 0;
 	struct fts_ts_data *ts_data = NULL;
-
 	FTS_INFO("Touch Screen(SPI BUS) driver prboe...");
 
 	/* malloc memory for global struct variable */
@@ -1755,13 +1754,21 @@ static int get_current_mode(char *current_mode)
 	}
 
 	s = strstr(cmd_line, "androidboot.mode=");
-
 	if(s){
-		s += sizeof("androidboot.mode");
-		while(*s != ' ')
-			*current_mode++ = *s++;
-		*current_mode = '\0';
-	}
+                s += sizeof("androidboot.mode");
+                while(*s != ' ')
+                        *current_mode++ = *s++;
+                *current_mode = '\0';
+        } else {
+                s = strstr(cmd_line, "sprdboot.mode=");
+                if (!s)
+                        return 1;
+                s += sizeof("sprdboot.mode");
+                while(*s != ' ')
+                        *current_mode++ = *s++;
+                *current_mode = '\0';
+        }
+
 	return 0;
 }
 
