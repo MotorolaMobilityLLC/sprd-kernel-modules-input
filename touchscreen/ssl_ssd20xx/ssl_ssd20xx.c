@@ -205,11 +205,15 @@ static int get_queue(struct solomon_data *ftdata)
  */
 void ts_enable_irq(void)
 {
-	struct irq_desc *irq_desc = irq_to_desc(misc_dev->irq);
-	if(irq_desc->depth)
+	unsigned long irqflags = 0;
+	spin_lock_irqsave(&misc_dev->irq_lock, irqflags);
+	if(!misc_dev->irq_enabled){
 		enable_irq(misc_dev->irq);
-	else
-		printk("ts irq has been enabled irq_desc->depth:%d\n", irq_desc->depth);
+		misc_dev->irq_enabled = true;
+	}else{
+		printk("ts irq has been enabled");
+	}
+	spin_unlock_irqrestore(&misc_dev->irq_lock, irqflags);
 }
 
 /**
@@ -218,11 +222,15 @@ void ts_enable_irq(void)
  */
 void ts_disable_irq(void)
 {
-	struct irq_desc *irq_desc = irq_to_desc(misc_dev->irq);
-	if(!irq_desc->depth)
+	unsigned long irqflags = 0;
+	spin_lock_irqsave(&misc_dev->irq_lock, irqflags);
+	if(misc_dev->irq_enabled){
 		disable_irq(misc_dev->irq);
-	else
-		printk("ts irq has been disenabled irq_desc->depth:%d\n", irq_desc->depth);
+		misc_dev->irq_enabled = false;
+	}else{
+		printk("ts irq has been disabled");
+	}
+	spin_unlock_irqrestore(&misc_dev->irq_lock, irqflags);
 }
 
 #ifdef SUPPORT_ESD_CHECKSUM
@@ -4228,6 +4236,10 @@ static int solomon_probe(struct i2c_client *client,
 		pr_err("Irq request failed, ret: %d", err);
 		goto irq_request_failed;
 	}
+	
+	/*disable the irq */
+	disable_irq_nosync(ftdev->irq);
+	
 	err = solomon_boot_sequence(ftdev);
 
 #ifndef SUPPORT_DELAYED_TOUCH_POWER_UP
@@ -4599,7 +4611,7 @@ static int touch_solomon_init(void)
 	int err = 0;
 
 	get_bootargs(lcd_name,"lcd_name");
-	pr_err("%s() lcd_name %s\n",__func__,lcd_name);
+	pr_info("%s() lcd_name %s\n",__func__,lcd_name);
 	if(!strstr(lcd_name, LCD_NAME)){
 		pr_err("%s: match %s fail,return\n",__func__,lcd_name);
 		return 0;

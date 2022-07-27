@@ -597,6 +597,8 @@ struct solomon_device {
 	int int_pin;
 	int reset_pin;
 	bool is_suspend;
+	bool irq_enabled;
+	spinlock_t irq_lock;
 
 	u16 touch_mode;
 	u16 mptest_mode;
