@@ -3237,6 +3237,9 @@ static int get_bootargs(char *current_mode, char *boot_param)
 		while(*s != ' ')
 			*current_mode++ = *s++;
 		*current_mode = '\0';
+	} else {
+		printk(KERN_ERR "Read bootargs %s fail\n",boot_param);
+		return 1;
 	}
 	return 0;
 }
@@ -3718,9 +3721,8 @@ void rmi4_f54_module_exit(void);
 static int __init synaptics_rmi4_init(void)
 {
 	int ret;
-	get_bootargs(lcd_name,"lcd_name");
-	printk("%s() lcd_name %s\n",__func__,lcd_name);
-	if(!strstr(lcd_name, LCD_NAME)){
+	ret = get_bootargs(lcd_name,"lcd_name");
+	if((!ret) && (!strstr(lcd_name, LCD_NAME))){
 		printk("%s: match %s fail,return\n",__func__,lcd_name);
 		return 0;
 	}

@@ -4064,6 +4064,9 @@ static int get_bootargs(char *current_mode, char *boot_param)
 		while(*s != ' ')
 			*current_mode++ = *s++;
 		*current_mode = '\0';
+	} else {
+		printk(KERN_ERR "Read bootargs %s fail\n",boot_param);
+		return 1;
 	}
 	return 0;
 }
@@ -4610,9 +4613,8 @@ static int touch_solomon_init(void)
 {
 	int err = 0;
 
-	get_bootargs(lcd_name,"lcd_name");
-	pr_info("%s() lcd_name %s\n",__func__,lcd_name);
-	if(!strstr(lcd_name, LCD_NAME)){
+	err = get_bootargs(lcd_name,"lcd_name");
+	if((!err) && (!strstr(lcd_name, LCD_NAME))){
 		pr_err("%s: match %s fail,return\n",__func__,lcd_name);
 		return 0;
 	}
