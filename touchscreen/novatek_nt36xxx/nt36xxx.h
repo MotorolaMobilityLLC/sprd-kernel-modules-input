@@ -184,6 +184,9 @@ typedef enum {
 //---extern structures---
 extern struct nvt_ts_data *ts;
 
+extern volatile bool tp_spi_safaMode;
+extern volatile bool tp_spi_ignSafeModeIrq;
+
 //---extern functions---
 int32_t CTP_SPI_READ(struct spi_device *client, uint8_t *buf, uint16_t len);
 int32_t CTP_SPI_WRITE(struct spi_device *client, uint8_t *buf, uint16_t len);

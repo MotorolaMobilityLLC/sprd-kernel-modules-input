@@ -60,6 +60,9 @@ extern void nvt_mp_proc_deinit(void);
 
 struct nvt_ts_data *ts;
 
+volatile bool tp_spi_safaMode = false;
+volatile bool tp_spi_ignSafeModeIrq = false;
+
 #if BOOT_UPDATE_FIRMWARE
 static struct workqueue_struct *nvt_fwu_wq;
 extern void Boot_Update_Firmware(struct work_struct *work);
@@ -1030,15 +1033,62 @@ static ssize_t nvt_ts_firmware_version_show(struct device *dev,
 	return sprintf(buf, "0x%02X\n", ts->fw_ver);
 }
 
+static ssize_t ts_irq_eb_show(struct device *dev, struct device_attribute *attr,
+		char *buf)
+{
+	ssize_t count = 0;
+	int irq = 0;
+	struct irq_desc *desc = NULL;
+	irq = gpio_to_irq(ts->irq_gpio);
+	desc = irq_to_desc(irq);
+	if(desc){
+		count = snprintf(buf, PAGE_SIZE, "irq_depth:%d\n", desc->depth);
+	}
+
+	return count;
+}
+
+static ssize_t ts_irq_eb_store(struct device *dev,
+			     struct device_attribute *attr, const char *buf,
+  			     size_t count)
+{
+	struct input_dev *input_dev = ts->input_dev;
+	unsigned int input;
+
+        if (kstrtouint(buf, 10, &input))
+                return -EINVAL;
+	mutex_lock(&input_dev->mutex);
+
+	if (input == 1) {
+		NVT_LOG("enable irq");
+		nvt_irq_enable(true);
+		tp_spi_safaMode = false;
+	} else if (input == 0) {
+		NVT_LOG("disable irq");
+		nvt_irq_enable(false);
+		tp_spi_safaMode = true;
+		tp_spi_ignSafeModeIrq = true;
+	} else {
+		NVT_ERR("invalid args\n");
+		mutex_unlock(&input_dev->mutex);
+		return -EINVAL;
+	}
+
+	mutex_unlock(&input_dev->mutex);
+	return count;
+}
+
 static DEVICE_ATTR(ts_suspend, 0664, nvt_suspend_show, nvt_suspend_store);
 static DEVICE_ATTR(input_name, 0664, ts_input_name_show, NULL);
 static DEVICE_ATTR(firmware_version, 0664, nvt_ts_firmware_version_show, NULL);
+static DEVICE_ATTR(ts_irq_eb, 0664, ts_irq_eb_show, ts_irq_eb_store);
 
 static struct attribute *nvt_attrs[] = {
 
 	&dev_attr_ts_suspend.attr,
 	&dev_attr_input_name.attr,
 	&dev_attr_firmware_version.attr,
+	&dev_attr_ts_irq_eb.attr,
 	NULL
 };
 static const struct attribute_group nvt_attr_group = {
@@ -1311,6 +1361,12 @@ static irqreturn_t nvt_ts_work_func(int irq, void *data)
 #endif /* MT_PROTOCOL_B */
 	int32_t i = 0;
 	int32_t finger_cnt = 0;
+
+ 	if(true == tp_spi_ignSafeModeIrq) {
+  		tp_spi_ignSafeModeIrq = false;
+  		NVT_LOG("Ignore safe mode irq!");
+  		return IRQ_HANDLED;
+  	}
 
 #if WAKEUP_GESTURE
 	if (bTouchIsAwake == 0) {
