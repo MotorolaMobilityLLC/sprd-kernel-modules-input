@@ -82,6 +82,7 @@ static void nvt_ts_late_resume(struct early_suspend *h);
 uint32_t ENG_RST_ADDR  = 0x7FFF80;
 uint32_t SWRST_N8_ADDR = 0; //read from dtsi
 uint32_t SPI_RD_FAST_ADDR = 0;	//read from dtsi
+#define LCD_NAME "lcd_nt36672e_truly_mipi_fhd"
 
 #if TOUCH_KEY_NUM > 0
 const uint16_t touch_key_array[TOUCH_KEY_NUM] = {
@@ -141,6 +142,7 @@ const struct mtk_chip_config spi_ctrdata = {
 #endif
 
 static uint8_t bTouchIsAwake = 0;
+static char lcd_name[100];
 
 /*******************************************************
 Description:
@@ -2319,6 +2321,40 @@ static struct of_device_id nvt_match_table[] = {
 };
 #endif
 
+static int get_bootargs(char *current_mode, char *boot_param)
+{
+	struct device_node *np;
+	const char *cmd_line;
+	char *s = NULL;
+	int ret = 0;
+	memset(current_mode, 0, sizeof(char) * 100);
+	np = of_find_node_by_path("/chosen");
+
+	if (!np) {
+		printk(KERN_ERR "Can't get the /chosen\n");
+		return -EIO;
+	}
+
+	ret = of_property_read_string(np, "bootargs", &cmd_line);
+	if (ret < 0) {
+		printk(KERN_ERR "Can't get the bootargs\n");
+		return ret;
+	}
+
+	s = strstr(cmd_line, boot_param);
+
+	if(s){
+		s += (sizeof(boot_param) + 1);
+		while(*s != ' ')
+			*current_mode++ = *s++;
+		*current_mode = '\0';
+	} else {
+		printk(KERN_ERR "Read bootargs %s fail\n",boot_param);
+		return 1;
+	}
+	return 0;
+}
+
 static struct spi_driver nvt_spi_driver = {
 	.probe		= nvt_ts_probe,
 	.remove		= nvt_ts_remove,
@@ -2343,6 +2379,12 @@ return:
 static int32_t __init nvt_driver_init(void)
 {
 	int32_t ret = 0;
+	ret = get_bootargs(lcd_name, "lcd_name");
+	if ((!ret) && (!strstr(lcd_name, LCD_NAME)))
+	{
+		NVT_ERR("%s: match %s fail,return\n",__func__,lcd_name);
+		return 0;
+	}
 
 	NVT_LOG("start\n");
 

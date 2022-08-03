@@ -52,6 +52,7 @@
  * Private constant and macro definitions using #define
  *****************************************************************************/
 #define FTS_DRIVER_NAME                     "fts_ts"
+#define LCD_NAME                            "lcd_g40396_truly_mipi_fhd"
 #define INTERVAL_READ_REG                   200	/* unit:ms */
 #define TIMEOUT_READ_REG                    1000	/* unit:ms */
 #if FTS_POWER_SOURCE_CUST_EN
@@ -66,6 +67,7 @@
  *****************************************************************************/
 struct fts_ts_data *fts_data;
 static char current_mode[100];
+static char lcd_name[100];
 volatile bool tp_spi_safaMode = false;
 volatile bool tp_spi_ignSafeModeIrq = false;
 
@@ -1733,13 +1735,14 @@ static struct spi_driver fts_ts_driver = {
 	.id_table = fts_ts_id,
 };
 
-static int get_current_mode(char *current_mode)
+static int get_bootargs(char *current_mode, char *boot_param)
 {
 	struct device_node *np;
 	const char *cmd_line;
 	char *s = NULL;
-
 	int ret = 0;
+	memset(current_mode, 0, sizeof(char) * 100);
+	
 	np = of_find_node_by_path("/chosen");
 
 	if (!np) {
@@ -1753,29 +1756,24 @@ static int get_current_mode(char *current_mode)
 		return ret;
 	}
 
-	s = strstr(cmd_line, "androidboot.mode=");
-	if(s){
-                s += sizeof("androidboot.mode");
-                while(*s != ' ')
-                        *current_mode++ = *s++;
-                *current_mode = '\0';
-        } else {
-                s = strstr(cmd_line, "sprdboot.mode=");
-                if (!s)
-                        return 1;
-                s += sizeof("sprdboot.mode");
-                while(*s != ' ')
-                        *current_mode++ = *s++;
-                *current_mode = '\0';
-        }
+	s = strstr(cmd_line, boot_param);
 
+	if(s){
+		s += (sizeof(boot_param) + 1);
+		while(*s != ' ')
+			*current_mode++ = *s++;
+		*current_mode = '\0';
+	} else {
+		printk(KERN_ERR "Read bootargs %s fail\n",boot_param);
+		return 1;
+	}
 	return 0;
 }
 
 void check_current_mode(void)
 {
 	struct fts_ts_data *ts_data = fts_data;
-	get_current_mode(current_mode);
+	get_bootargs(current_mode, "androidboot.mode");
 	FTS_INFO("current_mode is %s\n",current_mode);
 	if(strstr(current_mode, "cali")){
 		fts_ts_suspend(ts_data->dev);
@@ -1791,7 +1789,12 @@ void check_current_mode(void)
 static int __init fts_ts_init(void)
 {
 	int ret = 0;
-
+	ret = get_bootargs(lcd_name, "lcd_name");
+	if ((!ret) && (!strstr(lcd_name, LCD_NAME)))
+	{
+		FTS_ERROR("%s: match %s fail,return\n",__func__,lcd_name);
+		return 0;
+	}
 	FTS_FUNC_ENTER();
 	ret = spi_register_driver(&fts_ts_driver);
 	if (ret != 0)
