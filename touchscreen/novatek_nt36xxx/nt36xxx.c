@@ -36,6 +36,7 @@
 #endif
 
 #include "nt36xxx.h"
+#define TUI_EXIT_DELAY 25
 #if NVT_TOUCH_ESD_PROTECT
 #include <linux/jiffies.h>
 #endif /* #if NVT_TOUCH_ESD_PROTECT */
@@ -180,10 +181,24 @@ return:
 *******************************************************/
 static inline int32_t spi_read_write(struct spi_device *client, uint8_t *buf, size_t len , NVT_SPI_RW rw)
 {
+	int iRtyCount = TUI_EXIT_DELAY;
 	struct spi_message m;
 	struct spi_transfer t = {
 		.len    = len,
 	};
+
+	while(iRtyCount){
+		if(!tp_spi_safaMode){
+			break;
+		}
+		mdelay(200);
+		NVT_ERR("irqEnable:%d iRtyCount:%d", tp_spi_safaMode, iRtyCount);
+		if(--iRtyCount <= 0){
+			NVT_ERR("spi in safe mode!");
+			dump_stack();
+			return -EIO;
+		}
+	}
 
 	memset(ts->xbuf, 0, len + DUMMY_BYTES);
 	memcpy(ts->xbuf, buf, len);
