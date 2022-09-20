@@ -71,6 +71,11 @@ static char lcd_name[100];
 volatile bool tp_spi_safaMode = false;
 volatile bool tp_spi_ignSafeModeIrq = false;
 
+#if IS_ENABLED(CONFIG_TRUSTY_TUI)
+extern bool is_in_tui(void);
+extern void notify_cancel_tui(void);
+#endif
+
 /*****************************************************************************
  * Static function prototypes
  *****************************************************************************/
@@ -1579,7 +1584,7 @@ static int fts_ts_remove_entry(struct fts_ts_data *ts_data)
 
 int fts_ts_suspend(struct device *dev)
 {
-	int ret = 0;
+	int ret = 0, retry = 10;
 	struct fts_ts_data *ts_data = fts_data;
 
 	FTS_FUNC_ENTER();
@@ -1587,11 +1592,35 @@ int fts_ts_suspend(struct device *dev)
 		FTS_INFO("Already in suspend state");
 		return 0;
 	}
+#if IS_ENABLED(CONFIG_TRUSTY_TUI)
+	/*if trusty is opened now, cancel tui*/
+	if (is_in_tui()) {
+		FTS_INFO("waiting for tui to exit first!");
+		notify_cancel_tui();
+		/*it seems it needs 1s for tui to exit*/
+		while (retry && tp_spi_safaMode) {
+			mdelay(200);
+			retry--;
+		}
+		if (tp_spi_safaMode) {
+			FTS_INFO("in TUI, cannot suspend!");
+			return 0;
+		}
+	}
+	retry = 10;
+#endif
+
+	while (retry && ts_data->fw_loading) {
+		FTS_INFO("fw upgrade in process, waiting");
+		mdelay(100);
+		retry--;
+	}
 
 	if (ts_data->fw_loading) {
-		FTS_INFO("fw upgrade in process, can't suspend");
+		FTS_INFO("fw upgrade in process, cannot suspend!");
 		return 0;
 	}
+
 #if FTS_ESDCHECK_EN
 	fts_esdcheck_suspend();
 #endif

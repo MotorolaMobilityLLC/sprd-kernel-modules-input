@@ -59,6 +59,11 @@ extern int32_t nvt_mp_proc_init(void);
 extern void nvt_mp_proc_deinit(void);
 #endif
 
+#if IS_ENABLED(CONFIG_TRUSTY_TUI)
+extern bool is_in_tui(void);
+extern void notify_cancel_tui(void);
+#endif
+
 struct nvt_ts_data *ts;
 
 volatile bool tp_spi_safaMode = false;
@@ -2128,11 +2133,32 @@ int32_t nvt_ts_suspend(struct device *dev)
 	uint32_t i = 0;
 #endif
 
+#if IS_ENABLED(CONFIG_TRUSTY_TUI)
+	uint32_t retry = 10;
+#endif
+
 	NVT_LOG("testlog: nvt_ts_suspend start.\n");
 	if (!bTouchIsAwake) {
 		NVT_LOG("Touch is already suspend\n");
 		return 0;
 	}
+
+#if IS_ENABLED(CONFIG_TRUSTY_TUI)
+	/*if trusty is opened now, cancel tui*/
+	if (is_in_tui()) {
+		NVT_LOG("waiting for tui to exit first!\n");
+		notify_cancel_tui();
+		/*it seems it needs 1s for tui to exit*/
+		while (retry && tp_spi_safaMode) {
+			mdelay(200);
+			retry--;
+		}
+		if (tp_spi_safaMode) {
+			NVT_LOG("in TUI, cannot suspend!\n");
+			return 0;
+		}
+	}
+#endif
 
 #if !WAKEUP_GESTURE
 	nvt_irq_enable(false);

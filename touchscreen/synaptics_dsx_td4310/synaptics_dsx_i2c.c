@@ -148,6 +148,11 @@ static struct synaptics_dsx_cap_button_map cap_button_map = {
 	.map = cap_button_codes,
 };
 
+#if IS_ENABLED(CONFIG_TRUSTY_TUI)
+extern bool is_in_tui(void);
+extern void notify_cancel_tui(void);
+#endif
+
 static int synaptics_rmi4_i2c_read(struct synaptics_rmi4_data *rmi4_data,
 		unsigned short addr, unsigned char *data,
 		unsigned short length);
@@ -3590,7 +3595,9 @@ static int synaptics_rmi4_suspend(struct device *dev)
 {
 	struct synaptics_rmi4_exp_fhandler *exp_fhandler;
 	struct synaptics_rmi4_data *rmi4_data;
-
+#if IS_ENABLED(CONFIG_TRUSTY_TUI)
+	int retry = 10;
+#endif
 	rmi4_data = i2c_get_clientdata(to_i2c_client(dev));
 	if (rmi4_data == NULL)
 		return -ENODEV;
@@ -3599,6 +3606,23 @@ static int synaptics_rmi4_suspend(struct device *dev)
 
 	if (rmi4_data->staying_awake)
 		return 0;
+
+#if IS_ENABLED(CONFIG_TRUSTY_TUI)
+	/*if trusty is opened now, cancel tui*/
+	if (is_in_tui()) {
+		dev_info(&rmi4_data->i2c_client->dev, "waiting for tui to exit first!\n");
+		notify_cancel_tui();
+		/*it seems it needs 1s for tui to exit*/
+		while (retry && tp_i2c_safaMode) {
+			mdelay(200);
+			retry--;
+		}
+		if (tp_i2c_safaMode) {
+			dev_info(&rmi4_data->i2c_client->dev, "in TUI, cannot suspend!\n");
+			return 0;
+                }
+	}
+#endif
 
 	if (rmi4_data->enable_wakeup_gesture) {
 		synaptics_rmi4_wakeup_gesture(rmi4_data, true);
