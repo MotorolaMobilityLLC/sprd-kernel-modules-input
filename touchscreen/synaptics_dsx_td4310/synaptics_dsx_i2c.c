@@ -571,6 +571,14 @@ static struct device_attribute attrs[] = {
 			synaptics_rmi4_wake_gesture_store),
 };
 
+int  rmi4_fw_update_module_init(void);
+int rmidev_module_init(void);
+int rmi4_f54_module_init(void);
+
+void  rmi4_fw_update_module_exit(void);
+void rmidev_module_exit(void);
+void rmi4_f54_module_exit(void);
+
 static ssize_t synaptics_rmi4_f01_reset_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t count)
 {
@@ -3449,24 +3457,19 @@ err_parse_dt:
 */
 static int synaptics_rmi4_remove(struct i2c_client *client)
 {
-	unsigned char attr_count;
 	struct synaptics_rmi4_data *rmi4_data = i2c_get_clientdata(client);
-
-	for (attr_count = 0; attr_count < ARRAY_SIZE(attrs); attr_count++) {
-		sysfs_remove_file(&rmi4_data->input_dev->dev.kobj,
-				&attrs[attr_count].attr);
-	}
-
+	synaptics_rmi4_irq_enable(rmi4_data, false);
+	free_irq(rmi4_data->irq, rmi4_data);
+	sysfs_remove_link(NULL, "touchscreen");
+	sysfs_remove_group(&client->dev.kobj, &attr_group);
+	rmidev_module_exit();
 	cancel_delayed_work_sync(&exp_data.work);
 	flush_workqueue(exp_data.workqueue);
 	destroy_workqueue(exp_data.workqueue);
-
-	synaptics_rmi4_irq_enable(rmi4_data, false);
-
 	synaptics_rmi4_empty_fn_list(rmi4_data);
 	input_unregister_device(rmi4_data->input_dev);
 	rmi4_data->input_dev = NULL;
-
+	synaptics_rmi4_gpio_free(rmi4_data);
 	kfree(rmi4_data);
 
 	return 0;
@@ -3699,13 +3702,6 @@ static struct i2c_driver synaptics_rmi4_driver = {
 	.id_table	= synaptics_rmi4_id_table,
 };
 
-int  rmi4_fw_update_module_init(void);
-int rmidev_module_init(void);
-int rmi4_f54_module_init(void);
-
-void  rmi4_fw_update_module_exit(void);
-void rmidev_module_exit(void);
-void rmi4_f54_module_exit(void);
 
 
 
