@@ -37,14 +37,7 @@
  */
 #include "vl53l0_api.h"
 
-/*#define USE_INT */
-#define IRQ_NUM	   133 //87 l5pro//133 /*130*/
-#define XSHUT_GPIO 132 //86 l5pro//132 /*131*/
-
 /* #define DEBUG_TIME_LOG */
-#ifdef DEBUG_TIME_LOG
-struct timeval start_tv, stop_tv;
-#endif
 
 /*
  * Global data
@@ -63,6 +56,8 @@ static struct stmvl53l0_module_fn_t stmvl53l0_module_func_tbl = {
 	.deinit = stmvl53l0_exit_i2c,
 	.power_up = stmvl53l0_power_up_i2c,
 	.power_down = stmvl53l0_power_down_i2c,
+	.pull_low_xshut = stmvl53l0_pull_low_xshut_i2c,
+	.pull_high_xshut = stmvl53l0_pull_high_xshut_i2c
 };
 #endif
 struct stmvl53l0_module_fn_t *pmodule_func_tbl;
@@ -394,7 +389,8 @@ struct stmvl53l0_api_fn_t *papi_func_tbl;
 			_IOWR('p', 0x0c, struct stmvl53l0_register)
 #define VL53L0_IOCTL_PARAMETER \
 			_IOWR('p', 0x0d, struct stmvl53l0_parameter)
-
+#define VL53L0_IOCTL_PULL_LOW_XSHUT		_IO('p', 0x0e)
+#define VL53L0_IOCTL_PULL_HIGH_XSHUT	_IO('p', 0x0f)
 
 /* Mask fields to indicate Offset and Xtalk Comp
  * values have been set by application
@@ -443,24 +439,24 @@ static int stmvl53l0_start(struct stmvl53l0_data *data, uint8_t scaling,
 			init_mode_e mode);
 static int stmvl53l0_stop(struct stmvl53l0_data *data);
 static int stmvl53l0_config_use_case(struct stmvl53l0_data *data);
+static int stmvl53l0_pull_low_xshut(void);//pull low xshut to reduce power consumption
+static int stmvl53l0_pull_high_xshut(void);//pull high xshut to turn on vl53l0 when open camera sensor
+#define setup_timer(timer, func, data) do {} while (0)
 
-#ifdef DEBUG_TIME_LOG
-static void stmvl53l0_DebugTimeGet(struct timeval *ptv)
+typedef struct timespec64 timespec_1;
+#define ktime_get_ts ktime_get_ts64
+typedef struct __kernel_old_timeval timeval_1;
+
+void st_gettimeofday(timeval_1 *tv);
+void st_gettimeofday(timeval_1 *tv)
 {
-	do_gettimeofday(ptv);
-}
+	timespec_1 now;
 
-static void stmvl53l0_DebugTimeDuration(struct timeval *pstart_tv,
-			struct timeval *pstop_tv)
-{
-	long total_sec, total_msec;
-
-	total_sec = pstop_tv->tv_sec - pstart_tv->tv_sec;
-	total_msec = (pstop_tv->tv_usec - pstart_tv->tv_usec)/1000;
-	total_msec += total_sec * 1000;
-	pr_err("elapsedTime:%ld\n", total_msec);
+	ktime_get_real_ts64(&now);
+	tv->tv_sec = now.tv_sec;
+	tv->tv_usec = now.tv_nsec/1000;
+	return;
 }
-#endif
 
 static void stmvl53l0_setupAPIFunctions(struct stmvl53l0_data *data)
 {
@@ -643,12 +639,12 @@ static void stmvl53l0_setupAPIFunctions(struct stmvl53l0_data *data)
 
 static void stmvl53l0_ps_read_measurement(struct stmvl53l0_data *data)
 {
-	struct timeval tv;
+	timeval_1 tv;
 	VL53L0_DEV vl53l0_dev = data;
 	VL53L0_Error Status = VL53L0_ERROR_NONE;
 	FixPoint1616_t LimitCheckCurrent;
 
-	do_gettimeofday(&tv);
+	st_gettimeofday(&tv);
 
 	data->ps_data = data->rangeData.RangeMilliMeter;
 	input_report_abs(data->input_dev_ps, ABS_DISTANCE,
@@ -699,7 +695,7 @@ static void stmvl53l0_cancel_handler(struct stmvl53l0_data *data)
 	unsigned long flags;
 	bool ret;
 
-	spin_lock_irqsave(&data->update_lock.wait_lock, flags);
+	spin_lock_irqsave(&data->update_lock_new, flags);
 	/*
 	 * If work is already scheduled then subsequent schedules will not
 	 * change the scheduled time that's why we have to cancel it first.
@@ -708,7 +704,7 @@ static void stmvl53l0_cancel_handler(struct stmvl53l0_data *data)
 	if (ret == 0)
 		vl53l0_errmsg("cancel_delayed_work return FALSE\n");
 
-	spin_unlock_irqrestore(&data->update_lock.wait_lock, flags);
+	spin_unlock_irqrestore(&data->update_lock_new, flags);
 
 }
 
@@ -716,14 +712,14 @@ void stmvl53l0_schedule_handler(struct stmvl53l0_data *data)
 {
 	unsigned long flags;
 
-	spin_lock_irqsave(&data->update_lock.wait_lock, flags);
+	spin_lock_irqsave(&data->update_lock_new, flags);
 	/*
 	 * If work is already scheduled then subsequent schedules will not
 	 * change the scheduled time that's why we have to cancel it first.
 	 */
 	cancel_delayed_work(&data->dwork);
 	schedule_delayed_work(&data->dwork, 0);
-	spin_unlock_irqrestore(&data->update_lock.wait_lock, flags);
+	spin_unlock_irqrestore(&data->update_lock_new, flags);
 
 }
 
@@ -1920,6 +1916,12 @@ static int stmvl53l0_ioctl_handler(struct file *file,
 			return -EFAULT;
 		}
 		break;
+	case VL53L0_IOCTL_PULL_LOW_XSHUT:
+		stmvl53l0_pull_low_xshut();
+		break;
+	case VL53L0_IOCTL_PULL_HIGH_XSHUT:
+		stmvl53l0_pull_high_xshut();
+		break;
 	default:
 		rc = -EINVAL;
 		break;
@@ -1999,8 +2001,8 @@ static int stmvl53l0_init_client(struct stmvl53l0_data *data)
 
 	/* Perform Ref and RefSpad calibrations and save the values */
 
-
 	if (data->reset) {
+
 		pr_err("Call of VL53L0_DataInit\n");
 		/* Data initialization */
 		Status = papi_func_tbl->DataInit(vl53l0_dev);
@@ -2094,6 +2096,7 @@ static int stmvl53l0_init_client(struct stmvl53l0_data *data)
 
 
 	if (data->reset) {
+
 		if ((papi_func_tbl->SetXTalkCompensationRateMegaCps != NULL) &&
 		(vl53l0_dev->setCalibratedValue &
 			SET_XTALK_COMP_RATE_MCPS_MASK)) {
@@ -2112,6 +2115,7 @@ static int stmvl53l0_init_client(struct stmvl53l0_data *data)
 	}
 
 	if (data->reset) {
+
 		if (vl53l0_dev->setCalibratedValue &
 			/* Xtalk calibration done*/
 			 SET_XTALK_COMP_RATE_MCPS_MASK) {
@@ -2154,7 +2158,7 @@ static int stmvl53l0_init_client(struct stmvl53l0_data *data)
 				}
 			}
 		}
-		data->reset = 0;
+		//data->reset = 0;
 	}
 
 	/* Setup in single ranging mode */
@@ -2465,6 +2469,28 @@ static int stmvl53l0_start(struct stmvl53l0_data *data, uint8_t scaling,
 	return rc;
 }
 
+/*
+ *	pull low xshut to reduce power consumption
+ */
+static int stmvl53l0_pull_low_xshut(void){
+
+	int rc = 0;
+	rc = pmodule_func_tbl -> pull_low_xshut();
+	return rc;
+}
+
+/*
+ *	pull high xshut to turn on vl53l0 when open camera sensor
+ */
+static int stmvl53l0_pull_high_xshut(void){
+
+	int rc = 0;
+	rc = pmodule_func_tbl -> pull_high_xshut();
+
+	return rc;
+}
+
+
 
 VL53L0_Error WaitStopCompleted(VL53L0_DEV Dev)
 {
@@ -2532,7 +2558,7 @@ static int stmvl53l0_stop(struct stmvl53l0_data *data)
 
 	return rc;
 }
-static void stmvl53l0_timer_fn(unsigned long data)
+void stmvl53l0_timer_fn(unsigned long data)
 {
 
 	VL53L0_DEV vl53l0_dev = (VL53L0_DEV)data;
@@ -2594,6 +2620,7 @@ int stmvl53l0_setup(struct stmvl53l0_data *data)
 	/* init mutex */
 	mutex_init(&data->update_lock);
 	mutex_init(&data->work_mutex);
+	spin_lock_init(&data->update_lock_new);
 
 #ifdef USE_INT
 	/* init interrupt */
@@ -2777,15 +2804,13 @@ static int __init stmvl53l0_init(void)
 	/* assign function table */
 	pmodule_func_tbl = &stmvl53l0_module_func_tbl;
 	papi_func_tbl = &stmvl53l0_api_func_tbl;
-//	gpio_request(XSHUT_GPIO, "vl53l0_xshut_gpio");
-//	gpio_direction_output(XSHUT_GPIO, 0);
-//	usleep_range(2950, 3000);
-//	gpio_direction_output(XSHUT_GPIO, 1);
-//	usleep_range(2950, 3000);
 
 
 	/* client specific init function */
 	ret = pmodule_func_tbl->init();
+
+	/* pull low xshut to optimize power consumption */
+	stmvl53l0_pull_low_xshut();
 
 	if (ret)
 		vl53l0_errmsg("%d failed with %d\n", __LINE__, ret);

@@ -30,6 +30,8 @@ int stmvl53l0_init_i2c(void);
 void stmvl53l0_exit_i2c(void *);
 int stmvl53l0_power_up_i2c(void *, unsigned int *);
 int stmvl53l0_power_down_i2c(void *);
+int stmvl53l0_pull_low_xshut_i2c(void);
+int stmvl53l0_pull_high_xshut_i2c(void);
 
 #endif /* NOT CAMERA_CCI */
 #endif /* STMVL53L0_I2C_H */

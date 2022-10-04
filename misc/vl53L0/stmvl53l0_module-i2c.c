@@ -49,7 +49,13 @@
 #include "stmvl53l0.h"
 #ifndef CAMERA_CCI
 
-#define STM_TEST
+//#define STM_TEST
+
+
+/*
+ * Global variable
+ */
+static int xshut_gpio_num = 0;
 
 /*
  * Global data
@@ -86,10 +92,10 @@ static int vl53l0_init_dt(struct device *dev, struct stmvl53l0_data *pdata)
 		return 0;
 
 	if (!of_property_read_u32(np, "reset_gpios", &val))
-		pdata->xshut_gpio = val;
+		pdata->xshut_gpio = 242;
 
 	if (!of_property_read_u32(np, "irq_gpios", &val))
-		pdata->irq_gpio = val;
+		pdata->irq_gpio = 197;
 
 
 	return 0;
@@ -132,17 +138,17 @@ static int stmvl53l0_probe(struct i2c_client *client,
 
 	/* setup device name */
 	vl53l0_data->dev_name = dev_name(&client->dev);
-	if (vl53l0_data->xshut_gpio == 0)
-		vl53l0_data->xshut_gpio = 133;//95//130
-	if (vl53l0_data->irq_gpio == 0)
-		vl53l0_data->irq_gpio = 132;//132//97//131 TODO: parse form dts
-	gpio_request(vl53l0_data->xshut_gpio, "vl53l0_xshut_gpio");
-	gpio_direction_output(vl53l0_data->xshut_gpio, 0);
-	usleep_range(2950, 3000);
-	gpio_direction_output(vl53l0_data->xshut_gpio, 1);
-	usleep_range(2950, 3000);
-	gpio_request(vl53l0_data->irq_gpio, "vl53l0_gpio_int");
+	if ((vl53l0_data->xshut_gpio != 0) && (vl53l0_data->irq_gpio != 0)){
 
+		xshut_gpio_num = vl53l0_data -> xshut_gpio;
+
+		gpio_request(vl53l0_data->xshut_gpio, "vl53l0_xshut_gpio");
+		gpio_direction_output(vl53l0_data->xshut_gpio, 0);
+		usleep_range(2950, 3000);
+		gpio_direction_output(vl53l0_data->xshut_gpio, 1);
+		usleep_range(2950, 3000);
+		gpio_request(vl53l0_data->irq_gpio, "vl53l0_gpio_int");
+	}
 	/* setup device data */
 	dev_set_drvdata(&client->dev, vl53l0_data);
 
@@ -151,6 +157,10 @@ static int stmvl53l0_probe(struct i2c_client *client,
 
 	/* setup other stuff */
 	rc = stmvl53l0_setup(vl53l0_data);
+	if (ENODEV == rc) {
+		gpio_free(vl53l0_data->xshut_gpio);
+		gpio_free(vl53l0_data->irq_gpio);
+	}
 
 	/* init default value */
 	i2c_object->power_up = 0;
@@ -203,12 +213,11 @@ static struct i2c_driver stmvl53l0_driver = {
 int stmvl53l0_power_up_i2c(void *i2c_object, unsigned int *preset_flag)
 {
 	int ret = 0;
-#ifndef STM_TEST
 	struct i2c_data *data = (struct i2c_data *)i2c_object;
-#endif
 
 	vl53l0_dbgmsg("Enter\n");
 
+#if 0
 	/* actual power on */
 #ifndef STM_TEST
 	ret = regulator_set_voltage(data->vana, VL53L0_VDD_MIN, VL53L0_VDD_MAX);
@@ -223,9 +232,11 @@ int stmvl53l0_power_up_i2c(void *i2c_object, unsigned int *preset_flag)
 		vl53l0_errmsg("reg enable(%p) failed.rc=%d\n", data->vana, ret);
 		return ret;
 	}
+#endif
+#endif
+
 	data->power_up = 1;
 	*preset_flag = 1;
-#endif
 
 	vl53l0_dbgmsg("End\n");
 	return ret;
@@ -234,12 +245,11 @@ int stmvl53l0_power_up_i2c(void *i2c_object, unsigned int *preset_flag)
 int stmvl53l0_power_down_i2c(void *i2c_object)
 {
 	int ret = 0;
-#ifndef STM_TEST
 	struct i2c_data *data = (struct i2c_data *)i2c_object;
-#endif
 
 	vl53l0_dbgmsg("Enter\n");
 
+#if 0
 #ifndef STM_TEST
 	usleep_range(2950, 3000);
 	ret = regulator_disable(data->vana);
@@ -247,17 +257,41 @@ int stmvl53l0_power_down_i2c(void *i2c_object)
 		vl53l0_errmsg("reg disable(%p) failed.rc=%d\n",
 			      data->vana, ret);
 
-	data->power_up = 0;
 #endif
+#endif
+
+	data->power_up = 0;
 
 	vl53l0_dbgmsg("End\n");
 	return ret;
+}
+
+
+int stmvl53l0_pull_low_xshut_i2c(void){
+
+	int rc = 0;
+
+	gpio_direction_output(xshut_gpio_num, 0);
+	usleep_range(2950, 3000);
+	vl53l0_dbgmsg("stmvl53l0 pull low xshut\n");
+	return rc;
+}
+
+int stmvl53l0_pull_high_xshut_i2c(void){
+
+	int rc = 0;
+
+	gpio_direction_output(xshut_gpio_num, 1);
+	usleep_range(2950, 3000);
+	vl53l0_dbgmsg("stmvl53l0 pull high xshut\n");
+	return rc;
 }
 
 int stmvl53l0_init_i2c(void)
 {
 	int ret = 0;
 
+#if 0
 #ifdef STM_TEST
 	struct i2c_client *client = NULL;
 	struct i2c_adapter *adapter;
@@ -266,6 +300,7 @@ int stmvl53l0_init_i2c(void)
 		.addr = STMVL53L0_SLAVE_ADDR,
 	};
 #endif
+#endif
 
 	vl53l0_dbgmsg("Enter\n");
 	/* register as a i2c client device */
@@ -273,16 +308,25 @@ int stmvl53l0_init_i2c(void)
 	if (ret)
 		vl53l0_errmsg("%d erro ret:%d\n", __LINE__, ret);
 
+#if 0
 #ifdef STM_TEST
 	if (!ret) {
-		adapter = i2c_get_adapter(4);
-		if (!adapter)
+		adapter = i2c_get_adapter(6);
+		if (!adapter) {
+			vl53l0_errmsg("i2c_get_adapter fail\n");
 			ret = -EINVAL;
-		else
+		} else {
+			vl53l0_errmsg("i2c_get_adapter success\n");
 			client = i2c_new_device(adapter, &info);
-		if (!client)
+		}
+		if (!client) {
+			vl53l0_errmsg("i2c_new_device fail\n");
 			ret = -EINVAL;
+		} else {
+			vl53l0_errmsg("i2c_new_device success\n");
+		}
 	}
+#endif
 #endif
 
 	vl53l0_dbgmsg("End with rc:%d\n", ret);

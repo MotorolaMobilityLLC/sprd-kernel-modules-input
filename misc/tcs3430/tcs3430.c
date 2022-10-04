@@ -988,7 +988,7 @@ static int tcs3430_init_dt(struct ams_tcs3430_platform_data *pdata)
 	return 0;
 }
 
-#define TCS3430_INT_GPIO 240//133//112+128=240 l5pro
+#define TCS3430_INT_GPIO 108//133//112+128=240 l5pro
 static int tcs3430_probe(struct i2c_client *client,
 				   const struct i2c_device_id *idp)
 {

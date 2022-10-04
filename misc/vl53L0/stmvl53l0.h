@@ -118,6 +118,7 @@ struct stmvl53l0_data {
 	void *client_object; /* cci or i2c client */
 
 	struct mutex update_lock;
+	spinlock_t update_lock_new;
 	struct delayed_work	dwork;		/* for PS  work handler */
 	struct input_dev *input_dev_ps;
 	struct kobject *range_kobj;
@@ -207,6 +208,8 @@ struct stmvl53l0_module_fn_t {
 	void (*deinit)(void *);
 	int (*power_up)(void *, unsigned int *);
 	int (*power_down)(void *);
+	int (*pull_low_xshut)(void);
+	int (*pull_high_xshut)(void);
 };
 
 
