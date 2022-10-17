@@ -165,9 +165,9 @@ static int AKM099XX_read_xyz(struct AKM099XX_data *akm, int *vec)
 
 static void AKM099XX_report_values(struct AKM099XX_data *akm, int *xyz)
 {
-	input_report_abs(akm->idev, ABS_RX, xyz[0]);
-	input_report_abs(akm->idev, ABS_RY, xyz[1]);
-	input_report_abs(akm->idev, ABS_RZ, xyz[2]);
+	input_report_rel(akm->idev, REL_RX, xyz[0]);
+	input_report_rel(akm->idev, REL_RY, xyz[1]);
+	input_report_rel(akm->idev, REL_RZ, xyz[2]);
 	input_sync(akm->idev);
 }
 
@@ -248,19 +248,11 @@ static struct input_dev *AKM099XX_init_input(struct AKM099XX_data *akm)
 	input->phys = "AKM099XX/input0";
 	input->id.bustype = BUS_I2C;
 
-	__set_bit(EV_ABS, input->evbit);
 	input_set_events_per_packet(input, 100);
-	input_set_abs_params(input, ABS_RX, INT_MIN, INT_MAX, 0, 0);
-	input_set_abs_params(input, ABS_RY, INT_MIN, INT_MAX, 0, 0);
-	input_set_abs_params(input, ABS_RZ, INT_MIN, INT_MAX, 0, 0);
-	/*input_set_abs_params(input, ABS_RUDDER, 0, 3, 0, 0);*/
 
-	/* Report the dummy value */
-	input_set_abs_params(input, ABS_MISC, INT_MIN, INT_MAX, 0, 0);
-
-	input_set_capability(input, EV_REL, REL_X);
-	input_set_capability(input, EV_REL, REL_Y);
-	input_set_capability(input, EV_REL, REL_Z);
+	input_set_capability(input, EV_REL, REL_RX);
+	input_set_capability(input, EV_REL, REL_RY);
+	input_set_capability(input, EV_REL, REL_RZ);
 
 	status = input_register_device(input);
 	if (status) {

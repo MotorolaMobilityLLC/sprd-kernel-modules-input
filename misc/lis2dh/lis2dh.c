@@ -656,10 +656,10 @@ static int lis2dh_input_init(struct lis2dh_data *data)
 	dev->name = "accelerometer";
 	dev->id.bustype = BUS_I2C;
 
-	input_set_capability(dev, EV_ABS, ABS_MISC);
-	input_set_abs_params(dev, ABS_X, -G_MAX, G_MAX, 0, -1);
-	input_set_abs_params(dev, ABS_Y, -G_MAX, G_MAX, 0, -1);
-	input_set_abs_params(dev, ABS_Z, -G_MAX, G_MAX, 0, -1);
+	input_set_capability(dev, EV_REL, REL_X);
+	input_set_capability(dev, EV_REL, REL_Y);
+	input_set_capability(dev, EV_REL, REL_Z);
+
 
 	__set_bit(EV_MSC, dev->evbit);
 	__set_bit(MSC_SCAN, dev->mscbit);
@@ -713,9 +713,9 @@ static int lis2dh_get_acc_data(struct lis2dh_data *data)
 
 static void lis2dh_report_values(struct lis2dh_data *data)
 {
-	input_report_abs(data->input_dev, ABS_X, data->value.x);
-	input_report_abs(data->input_dev, ABS_Y, data->value.y);
-	input_report_abs(data->input_dev, ABS_Z, data->value.z);
+	input_report_rel(data->input_dev, REL_X, data->value.x);
+	input_report_rel(data->input_dev, REL_Y, data->value.y);
+	input_report_rel(data->input_dev, REL_Z, data->value.z);
 
 	input_event(data->input_dev, EV_MSC, MSC_SCAN,
 				data->timestamp >> 32);

@@ -43,7 +43,7 @@
 
 #define SENSOR_NAME                 "bma2x2"
 #define MSC_TIME                6
-#define G_MAX		16000	/* Maximum polled-device-reported g value */
+
 #define SLOPE_THRESHOLD_VALUE       32
 #define SLOPE_DURATION_VALUE        1
 #define INTERRUPT_LATCH_MODE        13
@@ -53,7 +53,7 @@
 #define SLOPE_X_INDEX               5
 #define SLOPE_Y_INDEX               6
 #define SLOPE_Z_INDEX               7
-#define BMA2X2_MAX_DELAY           200
+#define BMA2X2_MAX_DELAY           66
 #define BMA2X2_RANGE_SET_DEFAULT          BMA2X2_RANGE_4G /* +/- 4G */
 #define BMA2X2_BW_SET_DEFAULT               BMA2X2_BW_62_50HZ /* 62HZ  */
 
@@ -1346,7 +1346,7 @@ int sync_cnt;
 int event_gap_cnt;
 unsigned int offset_value[3];
 static unsigned long delay_ms;
-static int c200;
+
 struct bma2x2_type_map_t {
 
 	/*! bma2x2 sensor chip id */
@@ -4883,9 +4883,9 @@ static void bma2x2_work_func(struct work_struct *work)
 
 	rd_result = bma2x2_read_accel_xyz(bma2x2->bma2x2_client,
 			bma2x2->sensor_type, &acc);
-	input_report_abs(bma2x2->input, ABS_X, acc.x);
-	input_report_abs(bma2x2->input, ABS_Y, acc.y);
-	input_report_abs(bma2x2->input, ABS_Z, acc.z);
+	input_report_rel(bma2x2->input, REL_X, acc.x);
+	input_report_rel(bma2x2->input, REL_Y, acc.y);
+	input_report_rel(bma2x2->input, REL_Z, acc.z);
 	input_sync(bma2x2->input);
 	mutex_lock(&bma2x2->value_mutex);
 	bma2x2->value = acc;
@@ -6289,9 +6289,9 @@ static void bma2x2_irq_work_func(struct work_struct *work)
 	bma2x2_read_accel_xyz(bma2x2->bma2x2_client,
 				bma2x2->sensor_type, &acc);
 	/* LOG_INFO("New data x=%d,y=%d,z=%d\n", acc.x, acc.y, acc.z); */
-	input_report_abs(bma2x2->input, ABS_X, acc.x);
-	input_report_abs(bma2x2->input, ABS_Y, acc.y);
-	input_report_abs(bma2x2->input, ABS_Z, acc.z);
+	input_report_rel(bma2x2->input, REL_X, acc.x);
+	input_report_rel(bma2x2->input, REL_Y, acc.y);
+	input_report_rel(bma2x2->input, REL_Z, acc.z);
 	input_sync(bma2x2->input);
 	mutex_lock(&bma2x2->value_mutex);
 	bma2x2->value = acc;
@@ -6436,21 +6436,11 @@ static noinline void bma2x2_update_data(void *u)
 	    LOG_INFO("exception: iic read error rd_result=%d\n", rd_result);
 	/* if rd_result<0 iic read error,report last data */
 	/*LOG_INFO("delay_ms=%ld,c1000=%d c200=%d\n", delay_ms, c1000, c200);*/
-	if (delay_ms == 200) {
-		if (c200 == 2) {
-			input_report_abs(bma2x2->input, ABS_X, acc.x);
-			input_report_abs(bma2x2->input, ABS_Y, acc.y);
-			input_report_abs(bma2x2->input, ABS_Z, acc.z);
-			input_sync(bma2x2->input);
-			c200 = 0;
-		} else
-			c200++;
-	} else {
-		input_report_abs(bma2x2->input, ABS_X, acc.x);
-		input_report_abs(bma2x2->input, ABS_Y, acc.y);
-		input_report_abs(bma2x2->input, ABS_Z, acc.z);
-		input_sync(bma2x2->input);
-	}
+
+	input_report_rel(bma2x2->input, REL_X, acc.x);
+	input_report_rel(bma2x2->input, REL_Y, acc.y);
+	input_report_rel(bma2x2->input, REL_Z, acc.z);
+	input_sync(bma2x2->input);
 
 	enable_irq(bma2x2->irq);
 	return;
@@ -6575,7 +6565,7 @@ static int bma2x2_probe(struct i2c_client *client,
 #ifndef BMA_ENABLE_NEWDATA_INT
 	INIT_DELAYED_WORK(&data->work, bma2x2_work_func);
 #endif
-	atomic_set(&data->delay, BMA2X2_MAX_DELAY);
+	atomic_set(&data->delay, BMA2X2_MAX_DELAY + 1);
 	atomic_set(&data->enable, 0);
 	data->on_before_suspend = 0;
 
@@ -6587,12 +6577,11 @@ static int bma2x2_probe(struct i2c_client *client,
 	/* only value events reported */
 	dev->name = "accelerometer";
 	dev->id.bustype = BUS_I2C;
-	input_set_capability(dev, EV_ABS, ABS_MISC);
-	/* the flat -1 indicates input core always report to userspace */
-	/* not ignore the data if it is same as last one */
-	input_set_abs_params(dev, ABS_X, -G_MAX, G_MAX, 0, -1);
-	input_set_abs_params(dev, ABS_Y, -G_MAX, G_MAX, 0, -1);
-	input_set_abs_params(dev, ABS_Z, -G_MAX, G_MAX, 0, -1);
+
+	input_set_capability(dev, EV_REL, REL_X);
+	input_set_capability(dev, EV_REL, REL_Y);
+	input_set_capability(dev, EV_REL, REL_Z);
+
 	input_set_drvdata(dev, data);
 	err = input_register_device(dev);
 	if (err < 0)
