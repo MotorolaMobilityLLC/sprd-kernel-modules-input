@@ -739,8 +739,6 @@ static void lis2dh_timer_work_func(struct work_struct *work)
 		hrtimer_start(&data->hr_timer,
 			ktime_set(0, 0), HRTIMER_MODE_REL);
 	} else {
-		dev_info(&data->lis2dh_client->dev, "%s:timestamp_debug tmpkt =%lld\n",
-				__FUNCTION__, tmpkt);
 		hrtimer_start(&data->hr_timer, tmpkt, HRTIMER_MODE_REL);
 	}
 
