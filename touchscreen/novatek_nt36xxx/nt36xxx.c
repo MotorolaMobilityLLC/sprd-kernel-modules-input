@@ -244,6 +244,14 @@ int32_t CTP_SPI_READ(struct spi_device *client, uint8_t *buf, uint16_t len)
 	while (retries < 5) {
 		ret = spi_read_write(client, buf, len, NVTREAD);
 		if (ret == 0) break;
+		else
+		{
+			ret = spi_setup(client);
+			NVT_ERR("NVT has been setup!!!");
+			if (ret < 0) {
+				NVT_ERR("Failed to perform SPI setup\n");
+			}
+		}
 		retries++;
 	}
 
@@ -278,6 +286,14 @@ int32_t CTP_SPI_WRITE(struct spi_device *client, uint8_t *buf, uint16_t len)
 	while (retries < 5) {
 		ret = spi_read_write(client, buf, len, NVTWRITE);
 		if (ret == 0)	break;
+		else
+		{
+			ret = spi_setup(client);
+			NVT_ERR("NVT has been setup!!!");
+			if (ret < 0) {
+				NVT_ERR("Failed to perform SPI setup\n");
+			}
+		}
 		retries++;
 	}
 
