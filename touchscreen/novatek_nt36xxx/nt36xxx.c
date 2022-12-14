@@ -149,6 +149,8 @@ const struct mtk_chip_config spi_ctrdata = {
 
 static uint8_t bTouchIsAwake = 0;
 static char lcd_name[100];
+static char current_mode[100] = {0};
+static void nvt_ts_suspend_cali_autotest(struct device *dev);
 
 /*******************************************************
 Description:
@@ -1924,7 +1926,7 @@ static int32_t nvt_ts_probe(struct spi_device *client)
 	NVT_LOG("end\n");
 
 	nvt_irq_enable(true);
-
+	nvt_ts_suspend_cali_autotest(&ts->client->dev);
 	return 0;
 
 #if defined(CONFIG_FB)
@@ -2410,6 +2412,25 @@ static int get_bootargs(char *current_mode, char *boot_param)
 		return 1;
 	}
 	return 0;
+}
+
+static void nvt_ts_suspend_cali_autotest(struct device *dev)
+{
+	int retval;
+	retval = get_bootargs(current_mode, "sprdboot.mode");
+ 	if (retval) {
+ 		NVT_ERR("get current mode err.\n");
+	}
+	NVT_LOG("current_mode is %s\n",current_mode);
+	if(strstr(current_mode, "cali")){
+		nvt_ts_suspend(dev);
+	}
+	else if(strstr(current_mode, "autotest")){
+		nvt_ts_suspend(dev);
+	}
+	else if(strstr(current_mode, "normal")){
+
+	}
 }
 
 static struct spi_driver nvt_spi_driver = {
