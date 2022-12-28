@@ -979,6 +979,7 @@ int32_t nvt_update_firmware(char *firmware_name)
 	if (ret) {
 		NVT_ERR("nvt_get_fw_info failed. (%d)\n", ret);
 	}
+	nvt_ts_suspend_cali_autotest(&ts->client->dev);
 
 download_fail:
 	if (!IS_ERR_OR_NULL(bin_map)) {

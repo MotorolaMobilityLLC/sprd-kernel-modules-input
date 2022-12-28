@@ -206,6 +206,7 @@ int32_t nvt_set_page(uint32_t addr);
 int32_t nvt_write_addr(uint32_t addr, uint8_t data);
 int32_t nvt_ts_resume(struct device *dev);
 int32_t nvt_ts_suspend(struct device *dev);
+void nvt_ts_suspend_cali_autotest(struct device *dev);
 #if NVT_TOUCH_ESD_PROTECT
 extern void nvt_esd_check_enable(uint8_t enable);
 #endif /* #if NVT_TOUCH_ESD_PROTECT */
