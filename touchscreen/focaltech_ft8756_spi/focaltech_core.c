@@ -1803,8 +1803,19 @@ static int get_bootargs(char *current_mode, char *boot_param)
 
 void check_current_mode(void)
 {
+	int retval = 0;
 	struct fts_ts_data *ts_data = fts_data;
-	get_bootargs(current_mode, "androidboot.mode");
+	retval = get_bootargs(current_mode, "androidboot.mode");
+	if(retval)
+	{
+		retval = get_bootargs(current_mode, "sprdboot.mode");		
+	}
+	
+	if(retval)
+	{
+		FTS_ERROR("get current_mode err.\n");		
+	}
+	
 	FTS_INFO("current_mode is %s\n",current_mode);
 	if(strstr(current_mode, "cali")){
 		fts_ts_suspend(ts_data->dev);
