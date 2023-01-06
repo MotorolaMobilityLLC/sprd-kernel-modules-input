@@ -1844,8 +1844,11 @@ static void ts_suspend_cali_autotest(struct device *dev)
 {
 	int retval;
 	retval = get_bootargs(current_mode, "androidboot.mode");
- 	if (retval) {
- 		dev_err(dev, "get current mode err.\n");
+	if (retval) {
+		retval = get_bootargs(current_mode, "sprdboot.mode");
+	}
+	if (retval) {
+		dev_err(dev, "get current mode err.\n");
 	}
 	dev_info(dev, "current_mode is %s\n",current_mode);
 	if(strstr(current_mode, "cali")){
