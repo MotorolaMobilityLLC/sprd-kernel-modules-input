@@ -88,6 +88,7 @@ static void nvt_ts_late_resume(struct early_suspend *h);
 uint32_t ENG_RST_ADDR  = 0x7FFF80;
 uint32_t SWRST_N8_ADDR = 0; //read from dtsi
 uint32_t SPI_RD_FAST_ADDR = 0;	//read from dtsi
+bool nvt_debug_flag = false;
 #define LCD_NAME "lcd_nt36672e_truly_mipi_fhd"
 
 #if TOUCH_KEY_NUM > 0
@@ -1118,10 +1119,35 @@ static ssize_t ts_irq_eb_store(struct device *dev,
 	return count;
 }
 
+static ssize_t nvt_dbg_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	return snprintf(buf, PAGE_SIZE, "%s\n", nvt_debug_flag ? "true" : "false");
+}
+
+static ssize_t nvt_dbg_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	unsigned int input;
+
+	if (kstrtouint(buf, 10, &input))
+		return -EINVAL;
+
+	if (input == 1)
+		nvt_debug_flag = 1;
+	else if (input == 0)
+		nvt_debug_flag = 0;
+	else
+		return -EINVAL;
+
+	return count;
+}
+
 static DEVICE_ATTR(ts_suspend, 0664, nvt_suspend_show, nvt_suspend_store);
 static DEVICE_ATTR(input_name, 0664, ts_input_name_show, NULL);
 static DEVICE_ATTR(firmware_version, 0664, nvt_ts_firmware_version_show, NULL);
 static DEVICE_ATTR(ts_irq_eb, 0664, ts_irq_eb_show, ts_irq_eb_store);
+static DEVICE_ATTR(dbg_log, 0664, nvt_dbg_show, nvt_dbg_store);
 
 static struct attribute *nvt_attrs[] = {
 
@@ -1129,6 +1155,7 @@ static struct attribute *nvt_attrs[] = {
 	&dev_attr_input_name.attr,
 	&dev_attr_firmware_version.attr,
 	&dev_attr_ts_irq_eb.attr,
+	&dev_attr_dbg_log.attr,
 	NULL
 };
 static const struct attribute_group nvt_attr_group = {
@@ -1466,13 +1493,13 @@ static irqreturn_t nvt_ts_work_func(int irq, void *data)
 #endif
 
 	finger_cnt = 0;
-
 	for (i = 0; i < ts->max_touch_num; i++) {
 		position = 1 + 6 * i;
 		input_id = (uint8_t)(point_data[position + 0] >> 3);
 		if ((input_id == 0) || (input_id > ts->max_touch_num))
 			continue;
 
+		NVT_DBG("point_data[position] = %d", point_data[position]);
 		if (((point_data[position] & 0x07) == 0x01) || ((point_data[position] & 0x07) == 0x02)) {	//finger down (enter & moving)
 #if NVT_TOUCH_ESD_PROTECT
 			/* update interrupt timer */
@@ -1510,6 +1537,8 @@ static irqreturn_t nvt_ts_work_func(int irq, void *data)
 			input_report_abs(ts->input_dev, ABS_MT_POSITION_Y, input_y);
 			input_report_abs(ts->input_dev, ABS_MT_TOUCH_MAJOR, input_w);
 			input_report_abs(ts->input_dev, ABS_MT_PRESSURE, input_p);
+			NVT_DBG("input_x = %d", input_x);
+			NVT_DBG("input_y = %d", input_y);
 
 #if MT_PROTOCOL_B
 #else /* MT_PROTOCOL_B */
@@ -1531,6 +1560,7 @@ static irqreturn_t nvt_ts_work_func(int irq, void *data)
 	}
 
 	input_report_key(ts->input_dev, BTN_TOUCH, (finger_cnt > 0));
+	NVT_DBG("BTN_TOUCH = %d", (finger_cnt > 0));
 #else /* MT_PROTOCOL_B */
 	if (finger_cnt == 0) {
 		input_report_key(ts->input_dev, BTN_TOUCH, 0);
@@ -1764,7 +1794,6 @@ static int32_t nvt_ts_probe(struct spi_device *client)
 #endif
 
 	ts->int_trigger_type = INT_TRIGGER_TYPE;
-
 
 	//---set input device info.---
 	ts->input_dev->evbit[0] = BIT_MASK(EV_SYN) | BIT_MASK(EV_KEY) | BIT_MASK(EV_ABS);

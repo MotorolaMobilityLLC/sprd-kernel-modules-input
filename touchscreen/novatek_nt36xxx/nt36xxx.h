@@ -55,6 +55,11 @@
 //---SPI driver info.---
 #define NVT_SPI_NAME "NVT-ts"
 
+extern bool nvt_debug_flag;
+#define NVT_DBG(fmt, args...)\
+    {if(nvt_debug_flag)\
+    pr_info("[%s] %s %d: " fmt, NVT_SPI_NAME, __func__, __LINE__, ##args);}
+
 #if NVT_DEBUG
 #define NVT_LOG(fmt, args...)    pr_err("[%s] %s %d: " fmt, NVT_SPI_NAME, __func__, __LINE__, ##args)
 #else
