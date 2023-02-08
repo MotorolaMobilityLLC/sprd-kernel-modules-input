@@ -4924,7 +4924,7 @@ static void bma2x2_timer_work_fun(struct work_struct *work)
 	static uint64_t time_odr;
 	struct bma2x2acc acc_lsb;
 	bma2x2_buf_t acc_data;
-	struct timespec ts;
+	struct timespec64 ts;
 	static uint32_t data_cnt;
 	static uint32_t pre_data_cnt;
 	static int64_t sample_drift_offset;
@@ -5006,7 +5006,7 @@ static void bma2x2_timer_work_fun(struct work_struct *work)
 			acc_lsb.z >>=
 			(16 - bma2x2_sensor_bitwidth[bma2x2->sensor_type]);
 #endif
-			ts = ns_to_timespec(bma2x2->timestamp);
+			ts = ns_to_timespec64(bma2x2->timestamp);
 			bma2x2_remap_sensor_data(&acc_lsb, bma2x2);
 			acc_data.data.x = (int32_t)acc_lsb.x;
 			acc_data.data.y = (int32_t)acc_lsb.y;
