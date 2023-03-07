@@ -982,6 +982,7 @@ static int ts_isr_control(struct ts_data *pdata, bool _register)
  */
 int ts_suspend(struct platform_device *pdev, pm_message_t state)
 {
+	int  i = 0;
 	enum ts_result ret;
 	struct ts_data *pdata = platform_get_drvdata(pdev);
 	struct device *dev = &pdev->dev;
@@ -990,6 +991,17 @@ int ts_suspend(struct platform_device *pdev, pm_message_t state)
 #endif
 
 	dev_info(dev, "now we're going to sleep...");
+	for (i = 0; i < 50; i++) {
+		if (ts_get_mode(pdata, TSMODE_CONTROLLER_STATUS)) {
+			break;
+		}
+		msleep(60);
+		dev_info(dev, "ts_suspend times=%d\n", i);
+	}
+	if (i == 50) {
+		dev_err(dev, "ts_suspend update firmware or other cause overtime.\n");
+		return 0;
+	}
 
 #if IS_ENABLED(CONFIG_TRUSTY_TUI)
 	/*if trusty is opened now, cancel tui*/
@@ -1030,13 +1042,13 @@ int ts_suspend(struct platform_device *pdev, pm_message_t state)
 		&& ts_get_mode(pdata, TSMODE_CONTROLLER_STATUS)
 		&& pdata->controller->handle_event) {
 			dev_info(&pdev->dev, "enter suspend ???\n");
-				ret = pdata->controller->handle_event(pdata->controller,
-				TSEVENT_SUSPEND, NULL);
-				if (ret != TSRESULT_EVENT_HANDLED) {
+			ret = pdata->controller->handle_event(pdata->controller,
+			TSEVENT_SUSPEND, NULL);
+			if (ret != TSRESULT_EVENT_HANDLED) {
 				dev_info(dev, "suspend is not handled\n");
 				ts_clear_points(pdata);
 				return -ENODEV;
-				}
+			}
 	}
 	/* clear report data */
 	ts_clear_points(pdata);
