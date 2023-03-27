@@ -23,6 +23,8 @@ static char *lcd_names_support[] = {
 	"lcd_r61350_truly_mipi_hd_v2"
 };
 
+bool ats_debug_flag = false;
+
 /* spinlock used to enable/disable irq */
 static DEFINE_SPINLOCK(g_irqlock);
 static char current_mode[100] = {0};
@@ -177,6 +179,8 @@ static inline void ts_report_translate_key(struct ts_data *pdata,
 			if (ts_get_mode(pdata, TSMODE_DEBUG_RAW_DATA)) {
 				dev_dbg(dev, "Key %s UP", ts_get_keyname(kc_last));
 				dev_dbg(dev, "Key %s DOWN", ts_get_keyname(kc));
+				ATS_DBG("Key %s UP", ts_get_keyname(kc_last));
+				ATS_DBG("Key %s DOWN", ts_get_keyname(kc));
 			}
 			*sync_key = true;
 		} else if (kc > 0) {
@@ -187,6 +191,9 @@ static inline void ts_report_translate_key(struct ts_data *pdata,
 				dev_dbg(dev, "Point[%d] UP: x=%d, y=%d",
 				       last->slot, last->x, last->y);
 				dev_dbg(dev, "Key %s DOWN", ts_get_keyname(kc));
+				ATS_DBG("Point[%d] UP: x=%d, y=%d",
+				       last->slot, last->x, last->y);
+				ATS_DBG("Key %s DOWN", ts_get_keyname(kc));
 			}
 			*sync_key = *sync_abs = true;
 		} else if (kc_last > 0) {
@@ -197,6 +204,9 @@ static inline void ts_report_translate_key(struct ts_data *pdata,
 				dev_dbg(dev, "Key %s UP", ts_get_keyname(kc));
 				dev_dbg(dev, "Point[%d] DOWN: x=%d, y=%d",
 				       last->slot, last->x, last->y);
+				ATS_DBG("Key %s UP", ts_get_keyname(kc));
+				ATS_DBG("Point[%d] DOWN: x=%d, y=%d",
+				       last->slot, last->x, last->y);
 			}
 			*btn_down = true;
 			*sync_key = *sync_abs = true;
@@ -205,6 +215,8 @@ static inline void ts_report_translate_key(struct ts_data *pdata,
 			ts_report_abs(pdata, cur, true);
 			if (ts_get_mode(pdata, TSMODE_DEBUG_RAW_DATA))
 				dev_dbg(dev, "Point[%d] MOVE TO: x=%d, y=%d",
+				       cur->slot, cur->x, cur->y);
+				ATS_DBG("Point[%d] MOVE TO: x=%d, y=%d",
 				       cur->slot, cur->x, cur->y);
 			*btn_down = true;
 			*sync_abs = true;
@@ -215,12 +227,15 @@ static inline void ts_report_translate_key(struct ts_data *pdata,
 			input_report_key(pdata->input, kc, 1);
 			if (ts_get_mode(pdata, TSMODE_DEBUG_RAW_DATA))
 				dev_dbg(dev, "Key %s DOWN", ts_get_keyname(kc));
+				ATS_DBG("Key %s DOWN", ts_get_keyname(kc));
 			*sync_key = true;
 		} else {
 			/* new point down */
 			ts_report_abs(pdata, cur, true);
 			if (ts_get_mode(pdata, TSMODE_DEBUG_RAW_DATA))
 				dev_dbg(dev, "Point[%d] DOWN: x=%d, y=%d",
+				       cur->slot, cur->x, cur->y);
+				ATS_DBG("Point[%d] DOWN: x=%d, y=%d",
 				       cur->slot, cur->x, cur->y);
 			*btn_down = true;
 			*sync_abs = true;
@@ -231,12 +246,15 @@ static inline void ts_report_translate_key(struct ts_data *pdata,
 			input_report_key(pdata->input, kc_last, 0);
 			if (ts_get_mode(pdata, TSMODE_DEBUG_RAW_DATA))
 				dev_dbg(dev, "Key %s UP", ts_get_keyname(kc_last));
+				ATS_DBG("Key %s UP", ts_get_keyname(kc));
 			*sync_key = true;
 		} else {
 			/* point up */
 			ts_report_abs(pdata, last, false);
 			if (ts_get_mode(pdata, TSMODE_DEBUG_RAW_DATA))
 				dev_dbg(dev, "Point[%d] UP: x=%d, y=%d",
+				       last->slot, last->x, last->y);
+				ATS_DBG("Point[%d] UP: x=%d, y=%d",
 				       last->slot, last->x, last->y);
 			*sync_abs = true;
 		}
@@ -256,6 +274,8 @@ static inline void ts_report_no_translate(struct ts_data *pdata,
 			if (ts_get_mode(pdata, TSMODE_DEBUG_RAW_DATA))
 				dev_dbg(dev, "Point[%d] MOVE TO: x=%d, y=%d",
 				       cur->slot, cur->x, cur->y);
+				ATS_DBG("Point[%d] MOVE TO: x=%d, y=%d",
+				       cur->slot, cur->x, cur->y);
 			*sync_abs = true;
 		}
 	} else if (cur->pressed) {
@@ -264,11 +284,15 @@ static inline void ts_report_no_translate(struct ts_data *pdata,
 		if (ts_get_mode(pdata, TSMODE_DEBUG_RAW_DATA))
 			dev_dbg(dev, "Point[%d] DOWN: x=%d, y=%d",
 			       cur->slot, cur->x, cur->y);
+			ATS_DBG("Point[%d] DOWN: x=%d, y=%d",
+			       cur->slot, cur->x, cur->y);
 		*sync_abs = true;
 	} else if (last->pressed) {
 		ts_report_abs(pdata, last, false);
 		if (ts_get_mode(pdata, TSMODE_DEBUG_RAW_DATA))
 			dev_dbg(dev, "Point[%d] UP: x=%d, y=%d",
+			       last->slot, last->x, last->y);
+			ATS_DBG("Point[%d] UP: x=%d, y=%d",
 			       last->slot, last->x, last->y);
 		*sync_abs = true;
 	}
@@ -1685,6 +1709,30 @@ static ssize_t ts_irq_eb_show(struct device *dev,
 		pdata->irq?"enable":"disable");
 }
 
+static ssize_t ats_dbg_show(struct device *dev,
+                struct device_attribute *attr, char *buf)
+{
+	return snprintf(buf, PAGE_SIZE, "%s\n",	ats_debug_flag? "true" : "false");
+}
+
+static ssize_t ats_dbg_store(struct device *dev,
+                struct device_attribute *attr, const char *buf, size_t count)
+{
+	unsigned int input;
+
+	if (kstrtouint(buf, 10, &input))
+		return -EINVAL;
+
+	if (input == 1)
+		ats_debug_flag = 1;
+	else if (input == 0)
+		ats_debug_flag = 0;
+	else
+		return -EINVAL;
+
+	return count;
+}
+
 static struct device_attribute dev_attr_ts_irq_eb = {
 	.attr = {
 		.name = "ts_irq_eb",
@@ -1692,6 +1740,15 @@ static struct device_attribute dev_attr_ts_irq_eb = {
 	},
 	.show = ts_irq_eb_show,
 	.store = ts_irq_eb_store,
+};
+
+static struct device_attribute dev_attr_dbg_log = {
+	.attr = {
+		.name = "dbg_log",
+		.mode = S_IWUSR | S_IWGRP |S_IRUGO,
+	},
+	.show = ats_dbg_show,
+	.store = ats_dbg_store,
 };
 static struct attribute *ts_debug_attrs[] = {
 	&dev_attr_debug_level.attr,
@@ -1708,6 +1765,7 @@ static struct attribute *ts_debug_attrs[] = {
 	&dev_attr_ui_info.attr,
 	&dev_attr_ts_suspend.attr,
 	&dev_attr_ts_irq_eb.attr,
+	&dev_attr_dbg_log.attr,
 	NULL,
 };
 

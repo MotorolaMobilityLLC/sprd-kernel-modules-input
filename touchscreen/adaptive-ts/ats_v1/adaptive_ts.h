@@ -5,6 +5,8 @@
 
 #define TAG "[TS]"
 extern int ts_dbg_level;
+extern bool ats_debug_flag;
+
 #define TS_ERR(fmt, ...) \
 	pr_err(TAG " %s() " fmt "\n", __func__, ##__VA_ARGS__)
 #define TS_WARN(fmt, ...) \
@@ -16,6 +18,10 @@ extern int ts_dbg_level;
 		if (ts_dbg_level > 0) \
 			pr_info(TAG " %s() " fmt "\n", __func__, ##__VA_ARGS__); \
 	} while (0)
+
+#define ATS_DBG(fmt, args...)\
+    {if(ats_debug_flag)\
+    printk(KERN_ERR "[ATS/]%s:"fmt"\n", __func__, ##args);}
 
 /*
  * these MACROs define the common register info description
