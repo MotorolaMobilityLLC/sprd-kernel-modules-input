@@ -136,6 +136,8 @@ struct ts_ic_info {
 	struct ft_chip_t ids;
 };
 
+extern bool fts_debug_flag;
+
 /*********************************************************
  * DEBUG function define here
  ********************************************************/
@@ -160,4 +162,8 @@ struct ts_ic_info {
 
 #define FTS_ERROR(fmt, args...) \
 	printk(KERN_ERR "[FTS_TS/E]%s:"fmt"\n", __func__, ##args)
+
+#define FTS_DBG(fmt, args...)\
+    {if(fts_debug_flag)\
+    printk(KERN_ERR "[FTS_TS/E]%s:"fmt"\n", __func__, ##args);}
 #endif /* __LINUX_FOCALTECH_COMMON_H__ */

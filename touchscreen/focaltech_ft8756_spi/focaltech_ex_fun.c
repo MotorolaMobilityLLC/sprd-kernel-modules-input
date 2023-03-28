@@ -76,6 +76,7 @@ static struct rwreg_operation_t {
 /*****************************************************************************
  * Global variable or extern global variabls/functions
  *****************************************************************************/
+bool fts_debug_flag = false;
 
 /*****************************************************************************
  * Static function prototypes
@@ -1142,6 +1143,30 @@ static ssize_t fts_input_name_show(struct device *dev,
 	return snprintf(buf, PAGE_SIZE, "%s\n",ts_data->input_dev->name);
 }
 
+static ssize_t fts_dbg_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	return snprintf(buf, PAGE_SIZE, "%s\n", fts_debug_flag ? "true" : "false");
+}
+
+static ssize_t fts_dbg_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	unsigned int input;
+
+	if (kstrtouint(buf, 10, &input))
+		return -EINVAL;
+
+	if (input == 1)
+		fts_debug_flag = 1;
+	else if (input == 0)
+		fts_debug_flag = 0;
+	else
+		return -EINVAL;
+
+	return count;
+}
+
 /* get the fw version  example:cat fw_version */
 static DEVICE_ATTR(fts_fw_version, 0644, fts_tpfwver_show,
 		   fts_tpfwver_store);
@@ -1183,6 +1208,7 @@ static DEVICE_ATTR(firmware_version, 0664, fts_tpfwver_show,
 		fts_tprwreg_store);
 static DEVICE_ATTR(input_name, 0664, fts_input_name_show,
 		NULL);
+static DEVICE_ATTR(dbg_log, 0664, fts_dbg_show,	fts_dbg_store);
 
 /* add your attr in here*/
 static struct attribute *fts_attributes[] = {
@@ -1203,6 +1229,7 @@ static struct attribute *fts_attributes[] = {
 	&dev_attr_ts_suspend.attr,
 	&dev_attr_firmware_version.attr,
 	&dev_attr_input_name.attr,
+	&dev_attr_dbg_log.attr,
 	NULL
 };
 
@@ -1228,6 +1255,7 @@ int fts_create_sysfs(struct fts_ts_data *ts_data)
 
 int fts_remove_sysfs(struct fts_ts_data *ts_data)
 {
+	sysfs_remove_link(NULL, "touchscreen");
 	sysfs_remove_group(&ts_data->dev->kobj, &fts_attribute_group);
 	return 0;
 }

@@ -474,7 +474,9 @@ static int fts_input_report_b(struct fts_ts_data *data)
 					  events[i].id, events[i].x,
 					  events[i].y, events[i].p,
 					  events[i].area);
+				FTS_DBG("DOWN!");
 			}
+			FTS_DBG("x = %d, y = %d", events[i].x, events[i].y);
 		} else {
 			uppoint++;
 			input_mt_report_slot_state(data->input_dev,
@@ -482,14 +484,17 @@ static int fts_input_report_b(struct fts_ts_data *data)
 			data->touchs &= ~BIT(events[i].id);
 			if (data->log_level >= 1)
 				FTS_DEBUG("[B]P%d UP!", events[i].id);
+				FTS_DBG("UP!");
 		}
 	}
 
 	if (unlikely(data->touchs ^ touchs)) {
 		for (i = 0; i < max_touch_num; i++) {
 			if (BIT(i) & (data->touchs ^ touchs)) {
-				if (data->log_level >= 1)
+				if (data->log_level >= 1) {
 					FTS_DEBUG("[B]P%d UP!", i);
+					FTS_DBG("UP!");
+				}
 				va_reported = true;
 				input_mt_slot(data->input_dev, i);
 				input_mt_report_slot_state(data->input_dev,
@@ -503,8 +508,10 @@ static int fts_input_report_b(struct fts_ts_data *data)
 	if (va_reported) {
 		/* touchs==0, there's no point but key */
 		if (EVENT_NO_DOWN(data) || (!touchs)) {
-			if (data->log_level >= 1)
+			if (data->log_level >= 1) {
 				FTS_DEBUG("[B]Points All Up!");
+				FTS_DBG("[B]Points All Up!");
+			}
 			input_report_key(data->input_dev, BTN_TOUCH, 0);
 		} else {
 			input_report_key(data->input_dev, BTN_TOUCH, 1);
@@ -1680,6 +1687,7 @@ int fts_ts_resume(struct device *dev)
 	if (ts_data->gesture_mode)
 		fts_gesture_resume(ts_data);
 
+	FTS_INFO("make TP enter into resume mode");
 	ts_data->suspended = false;
 	fts_irq_enable();
 	FTS_FUNC_EXIT();
@@ -1808,14 +1816,14 @@ void check_current_mode(void)
 	retval = get_bootargs(current_mode, "androidboot.mode");
 	if(retval)
 	{
-		retval = get_bootargs(current_mode, "sprdboot.mode");		
+		retval = get_bootargs(current_mode, "sprdboot.mode");
 	}
-	
+
 	if(retval)
 	{
-		FTS_ERROR("get current_mode err.\n");		
+		FTS_ERROR("get current_mode err.\n");
 	}
-	
+
 	FTS_INFO("current_mode is %s\n",current_mode);
 	if(strstr(current_mode, "cali")){
 		fts_ts_suspend(ts_data->dev);
@@ -1831,6 +1839,7 @@ void check_current_mode(void)
 static int __init fts_ts_init(void)
 {
 	int ret = 0;
+
 	ret = get_bootargs(lcd_name, "lcd_name");
 	if ((!ret) && (!strstr(lcd_name, LCD_NAME)))
 	{
