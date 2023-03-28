@@ -3530,7 +3530,7 @@ static int fwu_start_reflash(void)
 			break;
 		}
 	}
-
+	check_current_mode();
 exit:
 	if (fw_entry)
 		release_firmware(fw_entry);

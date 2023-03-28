@@ -399,4 +399,6 @@ static inline void hstoba(unsigned char *dest, unsigned short src)
 	dest[1] = src / 0x100;
 }
 
+void check_current_mode(void);
+
 #endif

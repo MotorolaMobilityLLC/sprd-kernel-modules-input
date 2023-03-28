@@ -551,6 +551,7 @@ struct synaptics_rmi4_exp_fn_data {
 
 static struct synaptics_rmi4_exp_fn_data exp_data;
 static char lcd_name[100];
+static char current_mode[100];
 
 static struct device_attribute attrs[] = {
 	__ATTR(reset, 0660,
@@ -589,7 +590,11 @@ static ssize_t synaptics_rmi4_f01_reset_store(struct device *dev,
 {
 	int retval;
 	unsigned int reset;
-	struct synaptics_rmi4_data *rmi4_data = dev_get_drvdata(dev);
+	struct synaptics_rmi4_data *rmi4_data = exp_data.rmi4_data;
+	if (!rmi4_data){
+		pr_err("F:%s rmi4_data is null!", __func__);
+		return -ENODEV;
+	}
 
 	if (kstrtouint(buf, 10, &reset))
 		return -EINVAL;
@@ -611,7 +616,11 @@ static ssize_t synaptics_rmi4_f01_reset_store(struct device *dev,
 static ssize_t synaptics_rmi4_f01_productinfo_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
-	struct synaptics_rmi4_data *rmi4_data = dev_get_drvdata(dev);
+	struct synaptics_rmi4_data *rmi4_data = exp_data.rmi4_data;
+	if (!rmi4_data){
+		pr_err("F:%s rmi4_data is null!", __func__);
+		return -ENODEV;
+	}
 
 	return snprintf(buf, PAGE_SIZE, "0x%02x 0x%02x\n",
 			(rmi4_data->rmi4_mod_info.product_info[0]),
@@ -621,7 +630,11 @@ static ssize_t synaptics_rmi4_f01_productinfo_show(struct device *dev,
 static ssize_t synaptics_rmi4_f01_buildid_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
-	struct synaptics_rmi4_data *rmi4_data = dev_get_drvdata(dev);
+	struct synaptics_rmi4_data *rmi4_data = exp_data.rmi4_data;
+	if (!rmi4_data){
+		pr_err("F:%s rmi4_data is null!", __func__);
+		return -ENODEV;
+	}
 
 	return snprintf(buf, PAGE_SIZE, "%u\n",
 			rmi4_data->firmware_id);
@@ -632,7 +645,11 @@ static ssize_t synaptics_rmi4_f01_flashprog_show(struct device *dev,
 {
 	int retval;
 	struct synaptics_rmi4_f01_device_status device_status;
-	struct synaptics_rmi4_data *rmi4_data = dev_get_drvdata(dev);
+	struct synaptics_rmi4_data *rmi4_data = exp_data.rmi4_data;
+	if (!rmi4_data){
+		pr_err("F:%s rmi4_data is null!", __func__);
+		return -ENODEV;
+	}
 
 	retval = synaptics_rmi4_i2c_read(rmi4_data,
 			rmi4_data->f01_data_base_addr,
@@ -652,7 +669,11 @@ static ssize_t synaptics_rmi4_f01_flashprog_show(struct device *dev,
 static ssize_t synaptics_rmi4_0dbutton_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
-	struct synaptics_rmi4_data *rmi4_data = dev_get_drvdata(dev);
+	struct synaptics_rmi4_data *rmi4_data = exp_data.rmi4_data;
+	if (!rmi4_data){
+		pr_err("F:%s rmi4_data is null!", __func__);
+		return -ENODEV;
+	}
 
 	return snprintf(buf, PAGE_SIZE, "%u\n",
 			rmi4_data->button_0d_enabled);
@@ -666,8 +687,12 @@ static ssize_t synaptics_rmi4_0dbutton_store(struct device *dev,
 	unsigned char ii;
 	unsigned char intr_enable;
 	struct synaptics_rmi4_fn *fhandler;
-	struct synaptics_rmi4_data *rmi4_data = dev_get_drvdata(dev);
 	struct synaptics_rmi4_device_info *rmi;
+	struct synaptics_rmi4_data *rmi4_data = exp_data.rmi4_data;
+	if (!rmi4_data){
+		pr_err("F:%s rmi4_data is null!", __func__);
+		return -ENODEV;
+	}
 
 	rmi = &(rmi4_data->rmi4_mod_info);
 
@@ -734,7 +759,11 @@ static ssize_t synaptics_rmi4_suspend_store(struct device *dev,
 static ssize_t synaptics_rmi4_wake_gesture_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
-	struct synaptics_rmi4_data *rmi4_data = dev_get_drvdata(dev);
+	struct synaptics_rmi4_data *rmi4_data = exp_data.rmi4_data;
+	if (!rmi4_data){
+		pr_err("F:%s rmi4_data is null!", __func__);
+		return -ENODEV;
+	}
 
 	return snprintf(buf, PAGE_SIZE, "%u\n",
 			rmi4_data->enable_wakeup_gesture);
@@ -744,7 +773,11 @@ static ssize_t synaptics_rmi4_wake_gesture_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t count)
 {
 	unsigned int input;
-	struct synaptics_rmi4_data *rmi4_data = dev_get_drvdata(dev);
+	struct synaptics_rmi4_data *rmi4_data = exp_data.rmi4_data;
+	if (!rmi4_data){
+		pr_err("F:%s rmi4_data is null!", __func__);
+		return -ENODEV;
+	}
 
 	if (kstrtouint(buf, 10, &input))
 		return -EINVAL;
@@ -1542,7 +1575,7 @@ static int synaptics_rmi4_irq_enable(struct synaptics_rmi4_data *rmi4_data,
 		}
 	}
 
-	return retval;
+	return 0;
 }
 
 static void synaptics_rmi4_set_intr_mask(struct synaptics_rmi4_fn *fhandler,
@@ -2987,7 +3020,11 @@ EXPORT_SYMBOL(synaptics_rmi4_new_function);
 static ssize_t synaptics_rmi4_f34_configid_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
-	struct synaptics_rmi4_data *rmi4_data = dev_get_drvdata(dev);
+	struct synaptics_rmi4_data *rmi4_data = exp_data.rmi4_data;
+	if (!rmi4_data){
+		pr_err("F:%s rmi4_data is null!", __func__);
+		return -ENODEV;
+	}
 
 	return snprintf(buf, PAGE_SIZE, "Configid: 0x%x\n", rmi4_data->config_id);
 }
@@ -2995,14 +3032,22 @@ static ssize_t synaptics_rmi4_f34_configid_show(struct device *dev,
 static ssize_t synaptics_rmi4_f34_firmwareid_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
-	struct synaptics_rmi4_data *rmi4_data = dev_get_drvdata(dev);
+	struct synaptics_rmi4_data *rmi4_data = exp_data.rmi4_data;
+	if (!rmi4_data){
+		pr_err("F:%s rmi4_data is null!", __func__);
+		return -ENODEV;
+	}
 
 	return snprintf(buf, PAGE_SIZE, "Firmware version: 0x%x\n", rmi4_data->firmware_id);
 }
 static ssize_t synaptics_rmi4_f01_product_id_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
-	struct synaptics_rmi4_data *rmi4_data = dev_get_drvdata(dev);
+	struct synaptics_rmi4_data *rmi4_data = exp_data.rmi4_data;
+	if (!rmi4_data){
+		pr_err("F:%s rmi4_data is null!", __func__);
+		return -ENODEV;
+	}
 
 	return snprintf(buf, PAGE_SIZE, "Chip id:0x%s\n",
 			(rmi4_data->rmi4_mod_info.product_id_string));
@@ -3011,7 +3056,11 @@ static ssize_t synaptics_rmi4_f01_product_id_show(struct device *dev,
 static ssize_t synaptics_light_suspend_show(struct device *dev,
 				  struct device_attribute *attr, char *buf)
 {
-	struct synaptics_rmi4_data *rmi4_data = dev_get_drvdata(dev);
+	struct synaptics_rmi4_data *rmi4_data = exp_data.rmi4_data;
+	if (!rmi4_data){
+		pr_err("F:%s rmi4_data is null!", __func__);
+		return -ENODEV;
+	}
 
 	return snprintf(buf, PAGE_SIZE, "%s\n",
 		rmi4_data->touch_stopped ? "true" : "false");
@@ -3044,32 +3093,40 @@ static ssize_t ts_input_name_show(struct device *dev,
 static ssize_t ts_irq_eb_store(struct device *dev,
                 struct device_attribute *attr, const char *buf, size_t count)
 {
-        unsigned int enable;
-        struct synaptics_rmi4_data *rmi4_data = dev_get_drvdata(dev);
+	unsigned int enable;
+	struct synaptics_rmi4_data *rmi4_data = exp_data.rmi4_data;
+	if (!rmi4_data){
+		pr_err("F:%s rmi4_data is null!", __func__);
+		return -ENODEV;
+	}
 
-        if (kstrtouint(buf, 10, &enable))
-                return -EINVAL;
+	if (kstrtouint(buf, 10, &enable))
+		return -EINVAL;
 
 	if (enable == 1){
 		tp_i2c_safaMode = false;
 		synaptics_rmi4_irq_enable(rmi4_data, true);
 	}
-        else if (enable == 0){
+	else if (enable == 0){
 		tp_i2c_safaMode = true;
 		synaptics_rmi4_irq_enable(rmi4_data, false);
 	}
-        else
-                return -EINVAL;
+	else
+		return -EINVAL;
 
-        return count;
+	return count;
 }
 
 static ssize_t ts_irq_eb_show(struct device *dev,
                 struct device_attribute *attr, char *buf)
 {
-        struct synaptics_rmi4_data *rmi4_data = dev_get_drvdata(dev);
+	struct synaptics_rmi4_data *rmi4_data = exp_data.rmi4_data;
+	if (!rmi4_data){
+		pr_err("F:%s rmi4_data is null!", __func__);
+		return -ENODEV;
+	}
 
-        return snprintf(buf, PAGE_SIZE, "%s\n",
+	return snprintf(buf, PAGE_SIZE, "%s\n",
                         rmi4_data->irq_enabled?"enable":"disable");
 }
 
@@ -3256,6 +3313,35 @@ static int get_bootargs(char *current_mode, char *boot_param)
 	}
 	return 0;
 }
+
+void check_current_mode(void)
+{
+	int retval = 0;
+	struct device *dev = &exp_data.rmi4_data->i2c_client->dev;
+
+	retval = get_bootargs(current_mode, "androidboot.mode");
+	if(retval)
+	{
+		retval = get_bootargs(current_mode, "sprdboot.mode");
+	}
+
+	if(retval)
+	{
+		dev_err(dev, "get current_mode err.\n", __func__);
+	}
+
+	dev_info(dev, "current_mode is %s\n",current_mode);
+	if(strstr(current_mode, "cali")){
+		synaptics_rmi4_suspend(dev);
+	}
+	else if(strstr(current_mode, "autotest")){
+		synaptics_rmi4_suspend(dev);
+	}
+	else if(strstr(current_mode, "normal")){
+
+	}
+}
+
 /**
 * synaptics_rmi4_probe()
 *
@@ -3361,20 +3447,11 @@ static int synaptics_rmi4_probe(struct i2c_client *client,
 
 	disable_irq_nosync(rmi4_data->irq);
 
-	retval = synaptics_rmi4_irq_enable(rmi4_data, true);
-	if (retval < 0) {
-		dev_err(&client->dev,
-				"%s: Failed to register attention interrupt\n",
-				__func__);
-		goto err_enable_irq;
-	}
-
 	if (!exp_data.initialized) {
 		mutex_init(&exp_data.mutex);
 		INIT_LIST_HEAD(&exp_data.list);
 		exp_data.initialized = true;
 	}
-
 
 	exp_data.workqueue = create_singlethread_workqueue("dsx_exp_workqueue");
 	INIT_DELAYED_WORK(&exp_data.work, synaptics_rmi4_exp_fn_work);
@@ -3409,6 +3486,14 @@ static int synaptics_rmi4_probe(struct i2c_client *client,
 	if (retval < 0) {
 		dev_err(&rmi4_data->i2c_client->dev, "Failed to create link!");
 		goto err_sysfs;
+	}
+
+	retval = synaptics_rmi4_irq_enable(rmi4_data, true);
+	if (retval < 0) {
+		dev_err(&client->dev,
+				"%s: Failed to register attention interrupt\n",
+				__func__);
+		goto err_enable_irq;
 	}
 
 	dev_err(&client->dev,
@@ -3462,12 +3547,12 @@ err_parse_dt:
 */
 static int synaptics_rmi4_remove(struct i2c_client *client)
 {
-	struct synaptics_rmi4_data *rmi4_data = i2c_get_clientdata(client);
+	struct synaptics_rmi4_data *rmi4_data = exp_data.rmi4_data;
 	synaptics_rmi4_irq_enable(rmi4_data, false);
 	free_irq(rmi4_data->irq, rmi4_data);
 	sysfs_remove_link(NULL, "touchscreen");
 	sysfs_remove_group(&client->dev.kobj, &attr_group);
-	rmidev_module_exit();
+	// rmidev_module_exit();
 	cancel_delayed_work_sync(&exp_data.work);
 	flush_workqueue(exp_data.workqueue);
 	destroy_workqueue(exp_data.workqueue);
@@ -3594,11 +3679,11 @@ static void synaptics_rmi4_wakeup_gesture(struct synaptics_rmi4_data *rmi4_data,
 static int synaptics_rmi4_suspend(struct device *dev)
 {
 	struct synaptics_rmi4_exp_fhandler *exp_fhandler;
-	struct synaptics_rmi4_data *rmi4_data;
+	struct synaptics_rmi4_data *rmi4_data =  exp_data.rmi4_data;
 #if IS_ENABLED(CONFIG_TRUSTY_TUI)
 	int retry = 10;
 #endif
-	rmi4_data = i2c_get_clientdata(to_i2c_client(dev));
+
 	if (rmi4_data == NULL)
 		return -ENODEV;
 
@@ -3663,7 +3748,7 @@ static int synaptics_rmi4_resume(struct device *dev)
 {
 	int retval;
 	struct synaptics_rmi4_exp_fhandler *exp_fhandler;
-	struct synaptics_rmi4_data *rmi4_data;
+	struct synaptics_rmi4_data *rmi4_data =  exp_data.rmi4_data;
 
 	rmi4_data = i2c_get_clientdata(to_i2c_client(dev));
 	if (rmi4_data == NULL)
