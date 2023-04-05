@@ -574,11 +574,18 @@ static ssize_t fts_irq_store(struct device *dev,
 	mutex_lock(&input_dev->mutex);
 	if (FTS_SYSFS_ECHO_ON(buf)) {
 		FTS_INFO("enable irq");
+#if FTS_ESDCHECK_EN
+		fts_esdcheck_resume();
+#endif
 		fts_irq_enable();
 		tp_spi_safaMode = false;
 	} else if (FTS_SYSFS_ECHO_OFF(buf)) {
 		FTS_INFO("disable irq");
+#if FTS_ESDCHECK_EN
+		fts_esdcheck_suspend();
+#endif
 		fts_irq_disable();
+		fts_fw_recovery();
 		tp_spi_safaMode = true;
 		tp_spi_ignSafeModeIrq = true;
 	}

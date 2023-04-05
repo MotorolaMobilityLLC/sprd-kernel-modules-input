@@ -219,6 +219,11 @@ static int esdcheck_algorithm(struct fts_ts_data *ts_data)
 	u8 reg_addr = 0;
 	bool hardware_reset = 0;
 
+	if (tp_spi_safaMode == 1) {
+		FTS_DEBUG("In safe mode, not check esd");
+		return 0;
+	}
+
 	/* 1. esdcheck is interrupt, then return */
 	if (fts_esdcheck_data.intr == 1) {
 		fts_esdcheck_data.intr_cnt++;

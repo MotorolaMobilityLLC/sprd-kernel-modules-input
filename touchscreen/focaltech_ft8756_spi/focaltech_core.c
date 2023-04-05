@@ -702,6 +702,19 @@ static void fts_irq_read_report(void)
 	fts_esdcheck_set_intr(1);
 #endif
 
+    if (true == tp_spi_ignSafeModeIrq) {
+	FTS_INFO("Ignore safe mode irq!");
+
+	fts_fw_recovery();
+
+	tp_spi_ignSafeModeIrq = false;
+
+#if FTS_ESDCHECK_EN
+	fts_esdcheck_set_intr(0);
+#endif
+	return;
+    }
+
 #if FTS_POINT_REPORT_CHECK_EN
 	fts_prc_queue_work(ts_data);
 #endif
@@ -723,11 +736,6 @@ static void fts_irq_read_report(void)
 
 static irqreturn_t fts_irq_handler(int irq, void *data)
 {
-	if(true == tp_spi_ignSafeModeIrq){
-		tp_spi_ignSafeModeIrq = false;
-		FTS_INFO("Ignore safe mode irq!");
-		return IRQ_HANDLED;
-	}
 	fts_irq_read_report();
 	return IRQ_HANDLED;
 }
