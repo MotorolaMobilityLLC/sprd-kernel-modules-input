@@ -194,11 +194,10 @@ void fts_hid2std(void)
 		if (ret < 0) {
 			FTS_ERROR("hid2std cmd read fail");
 		} else if ((buf[0] == 0xEB) && (buf[1] == 0xAA)
-			   && (buf[2] == 0x08)) {
+			   && (buf[2] == 0x09)) {
 			FTS_DEBUG("hidi2c change to stdi2c successful");
 		} else {
-			FTS_DEBUG
-			    ("hidi2c change to stdi2c not support or fail");
+			FTS_DEBUG("hidi2c change to stdi2c not support or fail");
 		}
 	}
 }
@@ -302,11 +301,9 @@ static int fts_get_ic_information(struct fts_ts_data *ts_data)
 			continue;
 		}
 
-		ret =
-		    fts_get_chip_types(ts_data, chip_id[0], chip_id[1],
-				       INVALID);
+		ret = fts_get_chip_types(ts_data, chip_id[0], chip_id[1], INVALID);
 		if (ret < 0) {
-			FTS_DEBUG("can't get ic informaton,retry:%d", cnt);
+			FTS_DEBUG("can't get ic information,retry:%d", cnt);
 			continue;
 		}
 
@@ -314,7 +311,7 @@ static int fts_get_ic_information(struct fts_ts_data *ts_data)
 	}
 
 	if (cnt >= 3) {
-		FTS_ERROR("get ic informaton fail");
+		FTS_ERROR("get ic information fail");
 		return -EIO;
 	}
 
@@ -340,8 +337,7 @@ static void fts_show_touch_buffer(u8 *data, int datalen)
 	}
 
 	for (i = 0; i < datalen; i++) {
-		count +=
-		    snprintf(tmpbuf + count, 1024 - count, "%02X,", data[i]);
+		count += snprintf(tmpbuf + count, 1024 - count, "%02X,", data[i]);
 		if (count >= 1024)
 			break;
 	}
@@ -827,8 +823,7 @@ static int fts_report_buffer_init(struct fts_ts_data *ts_data)
 	point_num = FTS_MAX_POINTS_SUPPORT;
 	ts_data->pnt_buf_size = FTS_TOUCH_DATA_LEN + FTS_GESTURE_DATA_LEN;
 
-	ts_data->point_buf =
-	    (u8 *)kzalloc(ts_data->pnt_buf_size + 1, GFP_KERNEL);
+	ts_data->point_buf = (u8 *)kzalloc(ts_data->pnt_buf_size + 1, GFP_KERNEL);
 	if (!ts_data->point_buf) {
 		FTS_ERROR("failed to alloc memory for point buf");
 		return -ENOMEM;
@@ -879,6 +874,7 @@ static int fts_pinctrl_init(struct fts_ts_data *ts)
 	if (IS_ERR_OR_NULL(ts->pins_release)) {
 		FTS_ERROR("Pin state[release] not found");
 		ret = PTR_ERR(ts->pins_release);
+		goto err_pinctrl_lookup;
 	}
 
 	return 0;
@@ -1037,9 +1033,7 @@ static int fts_power_source_init(struct fts_ts_data *ts_data)
 						    FTS_I2C_VTG_MIN_UV,
 						    FTS_I2C_VTG_MAX_UV);
 			if (ret) {
-				FTS_ERROR
-				    ("vcc_i2c regulator set_vtg failed,ret=%d",
-				     ret);
+				FTS_ERROR("vcc_i2c regulator set_vtg failed,ret=%d", ret);
 				regulator_put(ts_data->vcc_i2c);
 			}
 		}
@@ -1218,9 +1212,8 @@ static int fts_parse_dt(struct device *dev, struct fts_ts_platform_data *pdata)
 	/* key */
 	pdata->have_key = of_property_read_bool(np, "focaltech,have-key");
 	if (pdata->have_key) {
-		ret =
-		    of_property_read_u32(np, "focaltech,key-number",
-					 &pdata->key_number);
+		ret = of_property_read_u32(np, "focaltech,key-number",
+					 	&pdata->key_number);
 		if (ret < 0)
 			FTS_ERROR("Key number undefined!");
 
@@ -1744,8 +1737,9 @@ static int fts_ts_probe(struct spi_device *spi)
 	}
 
 	fts_irq_enable();
-
+	check_current_mode();
 	FTS_INFO("Touch Screen(SPI BUS) driver prboe successfully");
+
 	return 0;
 }
 
@@ -1789,7 +1783,7 @@ static int get_bootargs(char *current_mode, char *boot_param)
 	char *s = NULL;
 	int ret = 0;
 	memset(current_mode, 0, sizeof(char) * 100);
-	
+
 	np = of_find_node_by_path("/chosen");
 
 	if (!np) {
@@ -1806,7 +1800,7 @@ static int get_bootargs(char *current_mode, char *boot_param)
 	s = strstr(cmd_line, boot_param);
 
 	if(s){
-		s += (sizeof(boot_param) + 1);
+		s += (strlen(boot_param) + 1);
 		while(*s != ' ')
 			*current_mode++ = *s++;
 		*current_mode = '\0';
@@ -1847,14 +1841,13 @@ void check_current_mode(void)
 static int __init fts_ts_init(void)
 {
 	int ret = 0;
-
+	FTS_FUNC_ENTER();
 	ret = get_bootargs(lcd_name, "lcd_name");
 	if ((!ret) && (!strstr(lcd_name, LCD_NAME)))
 	{
 		FTS_ERROR("%s: match %s fail,return\n",__func__,lcd_name);
 		return 0;
 	}
-	FTS_FUNC_ENTER();
 	ret = spi_register_driver(&fts_ts_driver);
 	if (ret != 0)
 		FTS_ERROR("Focaltech touch screen driver init failed!");
