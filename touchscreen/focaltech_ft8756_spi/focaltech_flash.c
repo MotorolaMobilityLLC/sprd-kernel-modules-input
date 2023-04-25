@@ -134,7 +134,11 @@ static int fts_enter_into_boot(void)
 	FTS_INFO("enter into boot environment");
 	for (i = 0; i < FTS_UPGRADE_LOOP; i++) {
 		/* hardware tp reset to boot */
-		fts_fwupg_hardware_reset_to_boot();
+		ret = fts_fwupg_hardware_reset_to_boot();
+		if (ret) {
+			FTS_ERROR("fts_fwupg_hardware_reset_to_boot fail\n");
+			continue;
+		}
 		mdelay(upg->setting_nf->delay_init);
 
 		/* enter into boot & check boot id */
