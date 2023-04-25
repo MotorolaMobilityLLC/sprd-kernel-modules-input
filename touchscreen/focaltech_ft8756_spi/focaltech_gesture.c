@@ -103,14 +103,21 @@ static ssize_t fts_gesture_show(struct device *dev,
 				struct device_attribute *attr, char *buf)
 {
 	int count = 0;
+	int ret = 0;
 	u8 val = 0;
 	struct fts_ts_data *ts_data = fts_data;
 
 	mutex_lock(&ts_data->input_dev->mutex);
-	fts_read_reg(FTS_REG_GESTURE_EN, &val);
+	ret = fts_read_reg(FTS_REG_GESTURE_EN, &val);
+	if (ret < 0) {
+		FTS_ERROR("read FTS_REG_GESTURE_EN fail\n");
+		mutex_unlock(&ts_data->input_dev->mutex);
+		return ret;
+	}
+
 	count = snprintf(buf, PAGE_SIZE, "Gesture Mode:%s\n",
 			 ts_data->gesture_mode ? "On" : "Off");
-	count += snprintf(buf + count, PAGE_SIZE, "Reg(0xD0)=%d\n", val);
+	count += snprintf(buf + count, PAGE_SIZE - count, "Reg(0xD0)=%d\n", val);
 	mutex_unlock(&ts_data->input_dev->mutex);
 
 	return count;
