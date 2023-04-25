@@ -223,10 +223,8 @@ err_write:
 
 int fts_write_reg(u8 addr, u8 value)
 {
-    u8 writebuf[2] = { 0 };
+    u8 writebuf[2] = {addr, value};
 
-    writebuf[0] = addr;
-    writebuf[1] = value;
     return fts_write(writebuf, 2);
 }
 
