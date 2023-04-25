@@ -668,10 +668,10 @@ static ssize_t fts_tpfwver_show(struct device *dev,
 	fts_esdcheck_proc_busy(0);
 #endif
 	if ((fwver == 0xFF) || (fwver == 0x00))
-		num_read_chars =
-		    snprintf(buf, PAGE_SIZE, "get tp fw version fail!\n");
+		num_read_chars = snprintf(buf, PAGE_SIZE, "get tp fw version fail!\n");
 	else
-		num_read_chars = snprintf(buf, PAGE_SIZE, "Firmware version: 0x%02x\n", fwver);
+		num_read_chars = snprintf(buf, PAGE_SIZE, "Firmware version: 0x%02x\n",
+								 fwver);
 
 	mutex_unlock(&input_dev->mutex);
 	return num_read_chars;
@@ -699,76 +699,58 @@ static ssize_t fts_tprwreg_show(struct device *dev,
 	else if (rw_op.len == 1) {
 		if (rw_op.type == RWREG_OP_READ) {
 			if (rw_op.res == 0)
-				count =
-				    snprintf(buf, PAGE_SIZE,
+				count = snprintf(buf, PAGE_SIZE,
 					     "Read %02X: %02X\n", rw_op.reg,
 					     rw_op.val);
 			else
-				count =
-				    snprintf(buf, PAGE_SIZE,
+				count = snprintf(buf, PAGE_SIZE,
 					     "Read %02X failed, ret: %d\n",
 					     rw_op.reg, rw_op.res);
 
 		} else {
 			if (rw_op.res == 0)
-				count =
-				    snprintf(buf, PAGE_SIZE,
+				count = snprintf(buf, PAGE_SIZE,
 					     "Write %02X, %02X success\n",
 					     rw_op.reg, rw_op.val);
 			else
-				count =
-				    snprintf(buf, PAGE_SIZE,
+				count = snprintf(buf, PAGE_SIZE,
 					     "Write %02X failed, ret: %d\n",
 					     rw_op.reg, rw_op.res);
 
 		}
 	} else {
 		if (rw_op.type == RWREG_OP_READ) {
-			count =
-			    snprintf(buf, PAGE_SIZE,
-				     "Read Reg: [%02X]-[%02X]\n", rw_op.reg,
-				     rw_op.reg + rw_op.len);
-			count += snprintf(buf + count, PAGE_SIZE, "Result: ");
+			count = snprintf(buf, PAGE_SIZE, "Read Reg: [%02X]-[%02X]\n",
+							 rw_op.reg, rw_op.reg + rw_op.len);
+			count += snprintf(buf + count, PAGE_SIZE - count, "Result: ");
 			if (rw_op.res)
-				count +=
-				    snprintf(buf + count, PAGE_SIZE,
-					     "failed, ret: %d\n", rw_op.res);
+				count += snprintf(buf + count, PAGE_SIZE - count,
+					     		 "failed, ret: %d\n", rw_op.res);
 			else {
 				if (rw_op.opbuf) {
 					for (i = 0; i < rw_op.len; i++) {
-						count +=
-						    snprintf(buf + count,
-							     PAGE_SIZE, "%02X ",
-							     rw_op.opbuf[i]);
+						count += snprintf(buf + count,  PAGE_SIZE - count,
+										 "%02X ", rw_op.opbuf[i]);
 					}
-					count +=
-					    snprintf(buf + count, PAGE_SIZE,
-						     "\n");
+					count += snprintf(buf + count, PAGE_SIZE - count, "\n");
 				}
 			}
 		} else {
-			count =
-			    snprintf(buf, PAGE_SIZE,
-				     "Write Reg: [%02X]-[%02X]\n", rw_op.reg,
-				     rw_op.reg + rw_op.len - 1);
-			count +=
-			    snprintf(buf + count, PAGE_SIZE, "Write Data: ");
+			count = snprintf(buf, PAGE_SIZE, "Write Reg: [%02X]-[%02X]\n",
+							 rw_op.reg, rw_op.reg + rw_op.len - 1);
+			count += snprintf(buf + count, PAGE_SIZE - count, "Write Data: ");
 			if (rw_op.opbuf) {
 				for (i = 1; i < rw_op.len; i++) {
-					count +=
-					    snprintf(buf + count, PAGE_SIZE,
-						     "%02X ", rw_op.opbuf[i]);
+					count += snprintf(buf + count, PAGE_SIZE - count,
+						    		 "%02X ", rw_op.opbuf[i]);
 				}
-				count += snprintf(buf + count, PAGE_SIZE, "\n");
+				count += snprintf(buf + count, PAGE_SIZE - count, "\n");
 			}
 			if (rw_op.res) {
-				count +=
-				    snprintf(buf + count, PAGE_SIZE,
-					     "Result: failed, ret: %d\n",
-					     rw_op.res);
+				count += snprintf(buf + count, PAGE_SIZE - count,
+					     "Result: failed, ret: %d\n", rw_op.res);
 			} else {
-				count +=
-				    snprintf(buf + count, PAGE_SIZE,
+				count += snprintf(buf + count, PAGE_SIZE - count,
 					     "Result: success\n");
 			}
 		}
@@ -909,8 +891,7 @@ static ssize_t fts_tprwreg_store(struct device *dev,
 				rw_op.res = fts_read_reg(reg, &val);
 				rw_op.val = val;
 			} else {
-				rw_op.res =
-				    fts_read(&reg_c, 1, rw_op.opbuf, rw_op.len);
+				rw_op.res = fts_read(&reg_c, 1, rw_op.opbuf, rw_op.len);
 			}
 
 			if (rw_op.res < 0) {
@@ -958,27 +939,22 @@ static ssize_t fts_driverinfo_show(struct device *dev,
 	struct input_dev *input_dev = ts_data->input_dev;
 
 	mutex_lock(&input_dev->mutex);
-	count +=
-	    snprintf(buf + count, PAGE_SIZE, "Driver Ver:%s\n",
-		     FTS_DRIVER_VERSION);
+	count += snprintf(buf + count, PAGE_SIZE - count, "Driver Ver:%s\n",
+		     		FTS_DRIVER_VERSION);
 
-	count +=
-	    snprintf(buf + count, PAGE_SIZE, "Resolution:(%d,%d)~(%d,%d)\n",
-		     pdata->x_min, pdata->y_min, pdata->x_max, pdata->y_max);
+	count += snprintf(buf + count, PAGE_SIZE - count,
+					 "Resolution:(%d,%d)~(%d,%d)\n",
+		     		 pdata->x_min, pdata->y_min, pdata->x_max, pdata->y_max);
 
-	count +=
-	    snprintf(buf + count, PAGE_SIZE, "Max Touchs:%d\n",
-		     pdata->max_touch_number);
+	count += snprintf(buf + count, PAGE_SIZE - count, "Max Touchs:%d\n",
+		     		pdata->max_touch_number);
 
-	count +=
-	    snprintf(buf + count, PAGE_SIZE,
-		     "reset gpio:%d,int gpio:%d,irq:%d\n", pdata->reset_gpio,
-		     pdata->irq_gpio, ts_data->irq);
+	count += snprintf(buf + count, PAGE_SIZE - count,
+					 "reset gpio:%d,int gpio:%d,irq:%d\n",
+					 pdata->reset_gpio, pdata->irq_gpio, ts_data->irq);
 
-	count += snprintf(buf + count, PAGE_SIZE,
-			  "IC ID:0x%02x%02x\n",
-			  ts_data->ic_info.ids.chip_idh,
-			  ts_data->ic_info.ids.chip_idl);
+	count += snprintf(buf + count, PAGE_SIZE - count, "IC ID:0x%02x%02x\n",
+			  		ts_data->ic_info.ids.chip_idh, ts_data->ic_info.ids.chip_idl);
 	mutex_unlock(&input_dev->mutex);
 
 	return count;
@@ -1004,39 +980,48 @@ static ssize_t fts_dumpreg_show(struct device *dev,
 	fts_esdcheck_proc_busy(1);
 #endif
 	fts_read_reg(FTS_REG_POWER_MODE, &val);
-	count += snprintf(buf + count, PAGE_SIZE, "Power Mode:0x%02x\n", val);
+	count += snprintf(buf + count, PAGE_SIZE,
+					 "Power Mode:0x%02x\n", val);
 
 	fts_read_reg(FTS_REG_FW_VER, &val);
-	count += snprintf(buf + count, PAGE_SIZE, "FW Ver:0x%02x\n", val);
+	count += snprintf(buf + count, PAGE_SIZE - count,
+					 "FW Ver:0x%02x\n", val);
 
 	fts_read_reg(FTS_REG_LIC_VER, &val);
-	count +=
-	    snprintf(buf + count, PAGE_SIZE, "LCD Initcode Ver:0x%02x\n", val);
+	count += snprintf(buf + count, PAGE_SIZE - count,
+					 "LCD Initcode Ver:0x%02x\n", val);
 
 	fts_read_reg(FTS_REG_IDE_PARA_VER_ID, &val);
-	count += snprintf(buf + count, PAGE_SIZE, "Param Ver:0x%02x\n", val);
+	count += snprintf(buf + count, PAGE_SIZE - count,
+					 "Param Ver:0x%02x\n", val);
 
 	fts_read_reg(FTS_REG_IDE_PARA_STATUS, &val);
-	count += snprintf(buf + count, PAGE_SIZE, "Param status:0x%02x\n", val);
+	count += snprintf(buf + count, PAGE_SIZE - count,
+					 "Param status:0x%02x\n", val);
 
 	fts_read_reg(FTS_REG_VENDOR_ID, &val);
-	count += snprintf(buf + count, PAGE_SIZE, "Vendor ID:0x%02x\n", val);
+	count += snprintf(buf + count, PAGE_SIZE - count,
+					 "Vendor ID:0x%02x\n", val);
 
 	fts_read_reg(FTS_REG_LCD_BUSY_NUM, &val);
-	count +=
-	    snprintf(buf + count, PAGE_SIZE, "LCD Busy Number:0x%02x\n", val);
+	count += snprintf(buf + count, PAGE_SIZE - count,
+					 "LCD Busy Number:0x%02x\n", val);
 
 	fts_read_reg(FTS_REG_GESTURE_EN, &val);
-	count += snprintf(buf + count, PAGE_SIZE, "Gesture Mode:0x%02x\n", val);
+	count += snprintf(buf + count, PAGE_SIZE - count,
+					 "Gesture Mode:0x%02x\n", val);
 
 	fts_read_reg(FTS_REG_CHARGER_MODE_EN, &val);
-	count += snprintf(buf + count, PAGE_SIZE, "charge stat:0x%02x\n", val);
+	count += snprintf(buf + count, PAGE_SIZE - count,
+					 "charge stat:0x%02x\n", val);
 
 	fts_read_reg(FTS_REG_INT_CNT, &val);
-	count += snprintf(buf + count, PAGE_SIZE, "INT count:0x%02x\n", val);
+	count += snprintf(buf + count, PAGE_SIZE - count,
+					 "INT count:0x%02x\n", val);
 
 	fts_read_reg(FTS_REG_FLOW_WORK_CNT, &val);
-	count += snprintf(buf + count, PAGE_SIZE, "ESD count:0x%02x\n", val);
+	count += snprintf(buf + count, PAGE_SIZE - count,
+					 "ESD count:0x%02x\n", val);
 #if FTS_ESDCHECK_EN
 	fts_esdcheck_proc_busy(0);
 #endif
@@ -1064,11 +1049,10 @@ static ssize_t fts_tpbuf_show(struct device *dev, struct device_attribute *attr,
 	mutex_lock(&input_dev->mutex);
 	count += snprintf(buf + count, PAGE_SIZE, "touch point buffer:\n");
 	for (i = 0; i < fts_data->pnt_buf_size; i++) {
-		count +=
-		    snprintf(buf + count, PAGE_SIZE, "%02x ",
-			     fts_data->point_buf[i]);
+		count += snprintf(buf + count, PAGE_SIZE - count, "%02x ",
+			     		fts_data->point_buf[i]);
 	}
-	count += snprintf(buf + count, PAGE_SIZE, "\n");
+	count += snprintf(buf + count, PAGE_SIZE - count, "\n");
 	mutex_unlock(&input_dev->mutex);
 
 	return count;
