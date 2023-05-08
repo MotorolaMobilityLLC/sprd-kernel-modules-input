@@ -34,8 +34,8 @@
 #define NVT_DUMP_PARTITION_LEN  (1024)
 #define NVT_DUMP_PARTITION_PATH "/data/local/tmp"
 
-static struct timespec64 start, end;
 const struct firmware *fw_entry = NULL;
+static u64 start, end;
 //static struct nvt_firmware __fw_entry = {0};
 //struct nvt_firmware *fw_entry = &__fw_entry;
 static size_t fw_need_write_size = 0;
@@ -811,7 +811,7 @@ static int32_t nvt_download_firmware_hw_crc(void)
 	uint8_t retry = 0;
 	int32_t ret = 0;
 
-	do_settimeofday64(&start);
+	start = ktime_get_real_ns();
 
 	while (1) {
 		/* bootloader reset to reset MCU */
@@ -860,7 +860,7 @@ fail:
 		}
 	}
 
-	do_settimeofday64(&end);
+	end = ktime_get_real_ns();
 
 	return ret;
 }
@@ -878,7 +878,7 @@ static int32_t nvt_download_firmware(void)
 	uint8_t retry = 0;
 	int32_t ret = 0;
 
-	do_settimeofday64(&start);
+	start = ktime_get_real_ns();
 
 	while (1) {
 		/*
@@ -939,7 +939,7 @@ fail:
 		}
 	}
 
-	do_settimeofday64(&end);
+	end = ktime_get_real_ns();
 
 	return ret;
 }
@@ -1098,8 +1098,7 @@ int32_t nvt_update_firmware(char *firmware_name)
 		goto download_fail;
 	}
 
-	printk("[TS][NVT-ts]Update firmware success! <%ld us>\n",
-			(end.tv_sec - start.tv_sec)*1000000L + (end.tv_nsec - start.tv_nsec));
+	printk("[TS][NVT-ts]Update firmware success! <%ld us>\n", (end - start));
 
 	if(times_once==1){
 		/* Get FW Info */
