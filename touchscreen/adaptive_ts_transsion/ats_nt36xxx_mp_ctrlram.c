@@ -258,7 +258,7 @@ static void nvt_print_data_log_in_one_line(int32_t *data, int32_t data_num)
 	}
 
 	for (i = 0; i < data_num; i++) {
-		sprintf(tmp_log + i * 7, "%5d, ", data[i]);
+		snprintf(tmp_log + i * 7, (data_num - i)* 7 + 1, "%5d, ", data[i]);
 	}
 	tmp_log[data_num * 7] = '\0';
 	printk("%s", tmp_log);
@@ -282,7 +282,7 @@ static void nvt_print_result_log_in_one_line(uint8_t *result, int32_t result_num
 	}
 
 	for (i = 0; i < result_num; i++) {
-		sprintf(tmp_log + i * 6, "0x%02X, ", result[i]);
+		snprintf(tmp_log + i * 6, (result_num - i) * 6 + 1, "0x%02X, ", result[i]);
 	}
 	tmp_log[result_num * 6] = '\0';
 	printk("%s", tmp_log);
@@ -354,6 +354,7 @@ static void nvt_print_criteria(void)
 
 static int32_t nvt_save_rawdata_to_csv(int32_t *rawdata, uint8_t x_ch, uint8_t y_ch, const char *file_path, uint32_t offset)
 {
+	int size = 0;
 	uint32_t x = 0;
 	uint32_t y = 0;
 	unsigned long iArrayIndex = 0;
@@ -380,21 +381,21 @@ static int32_t nvt_save_rawdata_to_csv(int32_t *rawdata, uint8_t x_ch, uint8_t y
 	for (y = 0; y < y_ch; y++) {
 		for (x = 0; x < x_ch; x++) {
 			iArrayIndex = y * x_ch + x;
-			sprintf(fbufp + iArrayIndex * 7 + y * 2, "%5d, ", rawdata[iArrayIndex]);
+			size = snprintf(fbufp + iArrayIndex * 7 + y * 2, 8192, "%5d, ", rawdata[iArrayIndex]);
 		}
 		nvt_print_data_log_in_one_line(rawdata + y * x_ch, x_ch);
 		printk("\n");
-		sprintf(fbufp + (iArrayIndex + 1) * 7 + y * 2,"\r\n");
+		size += snprintf(fbufp + (iArrayIndex + 1) * 7 + y * 2, 8192 - size, "\r\n");
 	}
 #if TOUCH_KEY_NUM > 0
 	keydata_output_offset = y_ch * x_ch * 7 + y_ch * 2;
 	for (k = 0; k < Key_Channel; k++) {
 		iArrayIndex = y_ch * x_ch + k;
-		sprintf(fbufp + keydata_output_offset + k * 7, "%5d, ", rawdata[iArrayIndex]);
+		size += snprintf(fbufp + keydata_output_offset + k * 7, 8192 - size, "%5d, ", rawdata[iArrayIndex]);
 	}
 	nvt_print_data_log_in_one_line(rawdata + y_ch * x_ch, Key_Channel);
 	printk("\n");
-	sprintf(fbufp + y_ch * x_ch * 7 + y_ch * 2 + Key_Channel * 7, "\r\n");
+	size += snprintf(fbufp + y_ch * x_ch * 7 + y_ch * 2 + Key_Channel * 7, 8192 - size, "\r\n");
 #endif /* #if TOUCH_KEY_NUM > 0 */
 
 #ifdef IGNORE_GKI_TEST_IN_DEBUG_MODE
@@ -1446,7 +1447,7 @@ int32_t nvt_mp_parse_array(struct device_node *np, const char *name, int32_t *ar
 		int32_t size)
 {
 	struct property *data;
-	int32_t len, ret;
+	int32_t len =0, ret;
 #if NVT_DEBUG
 	int32_t j = 0;
 #endif

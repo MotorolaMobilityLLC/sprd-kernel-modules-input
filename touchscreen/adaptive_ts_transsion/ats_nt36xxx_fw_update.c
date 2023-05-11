@@ -973,6 +973,7 @@ static int nvt_get_tpd_firmware(const struct firmware **firmware_p)
 	if(fw_buf == NULL){
 		NVT_ERR("fw_entry malloc is not found\n");
 		kfree(ntv_dts_data.tpd_firmware_size);
+		ntv_dts_data.tpd_firmware_size = NULL;
 		return -1;
 	}
 
@@ -994,6 +995,7 @@ static int nvt_get_tpd_firmware(const struct firmware **firmware_p)
 	fw_buf->data = fw_file0;
 	*firmware_p = fw_buf;
 	kfree(ntv_dts_data.tpd_firmware_size);
+	ntv_dts_data.tpd_firmware_size = NULL;
 	NVT_LOG("end...\n");
 
 	return 0;

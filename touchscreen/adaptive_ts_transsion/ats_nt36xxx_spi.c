@@ -712,7 +712,9 @@ static ssize_t nvt_flash_read(struct file *file, char __user *buff, size_t count
 
 out:
 	kfree(str);
+	str = NULL;
     kfree(buf);
+	buf = NULL;
 kzalloc_failed:
 	return ret;
 }
@@ -751,8 +753,10 @@ static int32_t nvt_flash_close(struct inode *inode, struct file *file)
 {
 	struct nvt_flash_data *dev = file->private_data;
 
-	if (dev)
+	if (dev) {
 		kfree(dev);
+		dev = NULL;
+	}
 
 	return 0;
 }
@@ -992,6 +996,7 @@ int nvt_ts_check_chip_ver_trim(void)
 	int32_t retry = 0;
 	int32_t list = 0;
 	int32_t i = 0;
+	int32_t size = 0 ;
 	int32_t found_nvt_chip = 0;
 	int32_t ret = -1;
 	static int32_t init_first_is = 1;
@@ -1055,7 +1060,7 @@ int nvt_ts_check_chip_ver_trim(void)
 			// compare each byte
 			for (i = 0; i < NVT_ID_BYTE_MAX; i++) {
 
-				sprintf(ts->chipName, "NT%02x", buf[i + 1]);
+				size = snprintf(ts->chipName, sizeof(struct nvt_ts_data), "NT%02x", buf[i + 1]);
 				if (trim_id_table[list].mask[i]) {
 					if (buf[i + 1] != trim_id_table[list].id[i])
 						break;
@@ -1068,11 +1073,11 @@ int nvt_ts_check_chip_ver_trim(void)
 
 				if(buf[1] > 0)
 				{
-					sprintf(ts->chipName, "NT%x%02x%02x%X", buf[6], buf[5], buf[4], buf[1]);
+					size += snprintf(ts->chipName, sizeof(struct nvt_ts_data) - size, "NT%x%02x%02x%X", buf[6], buf[5], buf[4], buf[1]);
 				}
 				else
 				{
-					sprintf(ts->chipName, "NT%x%02x%02x", buf[6], buf[5], buf[4]);
+					size += snprintf(ts->chipName, sizeof(struct nvt_ts_data) - size, "NT%x%02x%02x", buf[6], buf[5], buf[4]);
 				}
 			}
 
@@ -1111,52 +1116,52 @@ static const unsigned short nt36xxx_addrs[] = { 0x62};
 
 static  unsigned char nt36xxx_gesture_readdata_c(struct ts_controller *c)
 {
-        int32_t ret = -1;
-        uint8_t gesture_id = 0;
-        uint8_t point_data[POINT_DATA_LEN + 2] = {0};
-        unsigned char value = -1 ;
-        uint8_t func_type = 0;
-        uint8_t func_id = 0;
-        uint8_t buf[3]={0};
-        mutex_lock(&ts->lock);
-        /* read all bytes once! */
-        ret = nvt_spi_read(ts->client, point_data, POINT_DATA_LEN + 1);
-        if (ret < 0) {
-            NVT_ERR("ctp i2c read failed.(%d)\n", ret);
-            goto XFER_ERROR;
-        }
+	int32_t ret = -1;
+	uint8_t gesture_id = 0;
+	uint8_t point_data[POINT_DATA_LEN + 2] = {0};
+	unsigned char value = -1 ;
+	uint8_t func_type = 0;
+	uint8_t func_id = 0;
+	uint8_t buf[3]={0};
+	mutex_lock(&ts->lock);
+	/* read all bytes once! */
+	ret = nvt_spi_read(ts->client, point_data, POINT_DATA_LEN + 1);
+	if (ret < 0) {
+		NVT_ERR("ctp i2c read failed.(%d)\n", ret);
+		goto XFER_ERROR;
+	}
 
 #if NVT_TOUCH_WDT_RECOVERY
-            /* ESD protect by WDT */
-            if (nvt_wdt_fw_recovery(point_data)) {
-                NVT_ERR("Recover for fw reset, %02X\n", point_data[1]);
-                if (point_data[1] == 0xFE) {
-                    nvt_sw_reset_idle();
-                }
-                nvt_read_fw_history(ts->mmap->MMAP_HISTORY_EVENT0);
-                nvt_read_fw_history(ts->mmap->MMAP_HISTORY_EVENT1);
-                nvt_update_firmware(BOOT_UPDATE_FIRMWARE_NAME);
-                buf[0] = EVENT_MAP_HOST_CMD;
-                buf[1] = 0x13;
-                nvt_spi_write(ts->client, buf, 2);
-                goto XFER_ERROR;
-            }
+	/* ESD protect by WDT */
+	if (nvt_wdt_fw_recovery(point_data)) {
+		NVT_ERR("Recover for fw reset, %02X\n", point_data[1]);
+		if (point_data[1] == 0xFE) {
+			nvt_sw_reset_idle();
+		}
+		nvt_read_fw_history(ts->mmap->MMAP_HISTORY_EVENT0);
+		nvt_read_fw_history(ts->mmap->MMAP_HISTORY_EVENT1);
+		nvt_update_firmware(BOOT_UPDATE_FIRMWARE_NAME);
+		buf[0] = EVENT_MAP_HOST_CMD;
+		buf[1] = 0x13;
+		nvt_spi_write(ts->client, buf, 2);
+		goto XFER_ERROR;
+	}
 #endif /* #if NVT_TOUCH_WDT_RECOVERY */
-        gesture_id = (uint8_t)(point_data[1] >> 3);
-        func_type = point_data[2];
-        func_id = point_data[3];
+	gesture_id = (uint8_t)(point_data[1] >> 3);
+	func_type = point_data[2];
+	func_id = point_data[3];
 
-        /* support fw specifal data protocol */
-        if ((gesture_id == DATA_PROTOCOL) && (func_type == FUNCPAGE_GESTURE)) {
-            gesture_id = func_id;
-        } else if (gesture_id > DATA_PROTOCOL) {
-            NVT_ERR("gesture_id %d is invalid, func_type=%d, func_id=%d\n", gesture_id, func_type, func_id);
-            goto XFER_ERROR;
-        }
-        value = gesture_id ;
+	/* support fw specifal data protocol */
+	if ((gesture_id == DATA_PROTOCOL) && (func_type == FUNCPAGE_GESTURE)) {
+		gesture_id = func_id;
+	} else if (gesture_id > DATA_PROTOCOL) {
+		NVT_ERR("gesture_id %d is invalid, func_type=%d, func_id=%d\n", gesture_id, func_type, func_id);
+		goto XFER_ERROR;
+	}
+	value = gesture_id ;
 
-    XFER_ERROR:
-         mutex_unlock(&ts->lock);
+XFER_ERROR:
+	mutex_unlock(&ts->lock);
 	return value;
 }
 
@@ -1488,6 +1493,7 @@ int  nt36xxx_upgrade_init(void)
 	if(tpd_firmware_update == NULL){
 		NVT_ERR("tpd_firmware kmalloc is not found\n");
 		kfree(tpd_vendor_id);
+		tpd_vendor_id = NULL;
 		return -1;
 	}
 
@@ -1518,7 +1524,7 @@ int  nt36xxx_upgrade_init(void)
 			ts->vendor_num = i;
 			g_pdata->firmware_update_switch = tpd_firmware_update[i];
 
-			sprintf(nvt_vendor_name, "tp_vendor_name%d", i);
+			snprintf(nvt_vendor_name, sizeof(nvt_vendor_name), "tp_vendor_name%d", i);
 			ret = of_property_read_string(ts->update_node, nvt_vendor_name, (char const **)&g_pdata->vendor_string);
 			if (ret < 0)
 				NVT_ERR("read tp_vendor_name fail. ret=%x\n", ret);
@@ -1533,12 +1539,14 @@ int  nt36xxx_upgrade_init(void)
 	if (ret < 0)
 		NVT_ERR("nvt_get_fw_info fail. ret=%x\n", ret);
 	memset(g_pdata->firmwork_version, 0x00, sizeof(g_pdata->firmwork_version));
-	sprintf(g_pdata->firmwork_version, "0x%02x", ts->fw_ver);
+	snprintf(g_pdata->firmwork_version, sizeof(g_pdata->firmwork_version), "0x%02x", ts->fw_ver);
 
 	memset(g_pdata->chip_name, 0x00, sizeof(g_pdata->chip_name));
 	memcpy(g_pdata->chip_name, ts->chipName, strlen(ts->chipName));
 	kfree(tpd_vendor_id);
+	tpd_vendor_id = NULL;
 	kfree(tpd_firmware_update);
+	tpd_firmware_update = NULL;
 
 	return ret;
 }

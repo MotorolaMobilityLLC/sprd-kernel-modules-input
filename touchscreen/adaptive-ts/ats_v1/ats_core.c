@@ -160,7 +160,6 @@ static inline void ts_report_translate_key(struct ts_data *pdata,
 		       bool *sync_abs, bool *sync_key, bool *btn_down)
 {
 	unsigned int kc, kc_last;
-	struct device *dev = &pdata->pdev->dev;
 
 	kc = ts_get_keycode(pdata, cur->x, cur->y);
 	kc_last = ts_get_keycode(pdata, last->x, last->y);
@@ -177,8 +176,6 @@ static inline void ts_report_translate_key(struct ts_data *pdata,
 			input_report_key(pdata->input, kc_last, 0);
 			input_report_key(pdata->input, kc, 1);
 			if (ts_get_mode(pdata, TSMODE_DEBUG_RAW_DATA)) {
-				dev_dbg(dev, "Key %s UP", ts_get_keyname(kc_last));
-				dev_dbg(dev, "Key %s DOWN", ts_get_keyname(kc));
 				ATS_DBG("Key %s UP", ts_get_keyname(kc_last));
 				ATS_DBG("Key %s DOWN", ts_get_keyname(kc));
 			}
@@ -188,9 +185,6 @@ static inline void ts_report_translate_key(struct ts_data *pdata,
 			ts_report_abs(pdata, last, false);
 			input_report_key(pdata->input, kc, 1);
 			if (ts_get_mode(pdata, TSMODE_DEBUG_RAW_DATA)) {
-				dev_dbg(dev, "Point[%d] UP: x=%d, y=%d",
-				       last->slot, last->x, last->y);
-				dev_dbg(dev, "Key %s DOWN", ts_get_keyname(kc));
 				ATS_DBG("Point[%d] UP: x=%d, y=%d",
 				       last->slot, last->x, last->y);
 				ATS_DBG("Key %s DOWN", ts_get_keyname(kc));
@@ -201,9 +195,6 @@ static inline void ts_report_translate_key(struct ts_data *pdata,
 			input_report_key(pdata->input, kc_last, 0);
 			ts_report_abs(pdata, cur, true);
 			if (ts_get_mode(pdata, TSMODE_DEBUG_RAW_DATA)) {
-				dev_dbg(dev, "Key %s UP", ts_get_keyname(kc));
-				dev_dbg(dev, "Point[%d] DOWN: x=%d, y=%d",
-				       last->slot, last->x, last->y);
 				ATS_DBG("Key %s UP", ts_get_keyname(kc));
 				ATS_DBG("Point[%d] DOWN: x=%d, y=%d",
 				       last->slot, last->x, last->y);
@@ -213,11 +204,10 @@ static inline void ts_report_translate_key(struct ts_data *pdata,
 		} else {
 			/* from screen to screen */
 			ts_report_abs(pdata, cur, true);
-			if (ts_get_mode(pdata, TSMODE_DEBUG_RAW_DATA))
-				dev_dbg(dev, "Point[%d] MOVE TO: x=%d, y=%d",
-				       cur->slot, cur->x, cur->y);
+			if (ts_get_mode(pdata, TSMODE_DEBUG_RAW_DATA)) {
 				ATS_DBG("Point[%d] MOVE TO: x=%d, y=%d",
 				       cur->slot, cur->x, cur->y);
+			}
 			*btn_down = true;
 			*sync_abs = true;
 		}
@@ -225,18 +215,17 @@ static inline void ts_report_translate_key(struct ts_data *pdata,
 		if (kc > 0) {
 			/* virtual key pressed */
 			input_report_key(pdata->input, kc, 1);
-			if (ts_get_mode(pdata, TSMODE_DEBUG_RAW_DATA))
-				dev_dbg(dev, "Key %s DOWN", ts_get_keyname(kc));
+			if (ts_get_mode(pdata, TSMODE_DEBUG_RAW_DATA)) {
 				ATS_DBG("Key %s DOWN", ts_get_keyname(kc));
+			}
 			*sync_key = true;
 		} else {
 			/* new point down */
 			ts_report_abs(pdata, cur, true);
-			if (ts_get_mode(pdata, TSMODE_DEBUG_RAW_DATA))
-				dev_dbg(dev, "Point[%d] DOWN: x=%d, y=%d",
-				       cur->slot, cur->x, cur->y);
+			if (ts_get_mode(pdata, TSMODE_DEBUG_RAW_DATA)) {
 				ATS_DBG("Point[%d] DOWN: x=%d, y=%d",
 				       cur->slot, cur->x, cur->y);
+			}
 			*btn_down = true;
 			*sync_abs = true;
 		}
@@ -244,18 +233,17 @@ static inline void ts_report_translate_key(struct ts_data *pdata,
 		if (kc_last > 0) {
 			/* virtual key released */
 			input_report_key(pdata->input, kc_last, 0);
-			if (ts_get_mode(pdata, TSMODE_DEBUG_RAW_DATA))
-				dev_dbg(dev, "Key %s UP", ts_get_keyname(kc_last));
+			if (ts_get_mode(pdata, TSMODE_DEBUG_RAW_DATA)) {
 				ATS_DBG("Key %s UP", ts_get_keyname(kc));
+			}
 			*sync_key = true;
 		} else {
 			/* point up */
 			ts_report_abs(pdata, last, false);
-			if (ts_get_mode(pdata, TSMODE_DEBUG_RAW_DATA))
-				dev_dbg(dev, "Point[%d] UP: x=%d, y=%d",
-				       last->slot, last->x, last->y);
+			if (ts_get_mode(pdata, TSMODE_DEBUG_RAW_DATA)) {
 				ATS_DBG("Point[%d] UP: x=%d, y=%d",
 				       last->slot, last->x, last->y);
+			}
 			*sync_abs = true;
 		}
 	}
@@ -265,35 +253,30 @@ static inline void ts_report_no_translate(struct ts_data *pdata,
 		      struct ts_point *cur, struct ts_point *last,
 		      bool *sync_abs, bool *btn_down)
 {
-	struct device *dev = &pdata->pdev->dev;
-
 	if (cur->pressed && last->pressed) {
 		*btn_down = true;
 		if (cur->x != last->x || cur->y != last->y) {
 			ts_report_abs(pdata, cur, true);
-			if (ts_get_mode(pdata, TSMODE_DEBUG_RAW_DATA))
-				dev_dbg(dev, "Point[%d] MOVE TO: x=%d, y=%d",
-				       cur->slot, cur->x, cur->y);
+			if (ts_get_mode(pdata, TSMODE_DEBUG_RAW_DATA)) {
 				ATS_DBG("Point[%d] MOVE TO: x=%d, y=%d",
 				       cur->slot, cur->x, cur->y);
+			}
 			*sync_abs = true;
 		}
 	} else if (cur->pressed) {
 		*btn_down = true;
 		ts_report_abs(pdata, cur, true);
-		if (ts_get_mode(pdata, TSMODE_DEBUG_RAW_DATA))
-			dev_dbg(dev, "Point[%d] DOWN: x=%d, y=%d",
-			       cur->slot, cur->x, cur->y);
+		if (ts_get_mode(pdata, TSMODE_DEBUG_RAW_DATA)) {
 			ATS_DBG("Point[%d] DOWN: x=%d, y=%d",
 			       cur->slot, cur->x, cur->y);
+		}
 		*sync_abs = true;
 	} else if (last->pressed) {
 		ts_report_abs(pdata, last, false);
-		if (ts_get_mode(pdata, TSMODE_DEBUG_RAW_DATA))
-			dev_dbg(dev, "Point[%d] UP: x=%d, y=%d",
-			       last->slot, last->x, last->y);
+		if (ts_get_mode(pdata, TSMODE_DEBUG_RAW_DATA)) {
 			ATS_DBG("Point[%d] UP: x=%d, y=%d",
 			       last->slot, last->x, last->y);
+		}
 		*sync_abs = true;
 	}
 }

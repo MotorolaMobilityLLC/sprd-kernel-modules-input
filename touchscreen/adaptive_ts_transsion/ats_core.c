@@ -957,7 +957,7 @@ static int ts_request_firmware_upgrade(struct ts_data *pdata,
 			TS_ERR("fail to allocate buffer for firmware name");
 			return -ENOMEM;
 		}
-		sprintf(buf, "%s-%s.bin", pdata->controller->vendor, pdata->controller->name);
+		snprintf(buf, PAGE_SIZE, "%s-%s.bin", pdata->controller->vendor, pdata->controller->name);
 		name = buf;
 	} else {
 		name = (char *)fw_name;
@@ -1013,8 +1013,15 @@ static int ts_register_input_dev(struct ts_data *pdata)
 
 	if (ts_get_mode(pdata, TSMODE_CONTROLLER_EXIST)
 		&& ((pdata->controller->config & TSCONF_REPORT_TYPE_MASK)
-		!= TSCONF_REPORT_TYPE_1))
-		input_mt_init_slots(input, pdata->board->max_touch_num, INPUT_MT_DIRECT);
+		!= TSCONF_REPORT_TYPE_1)) {
+		retval = input_mt_init_slots(input, pdata->board->max_touch_num, INPUT_MT_DIRECT);
+		if (!retval) {
+			TS_ERR("Failed to init input slots.");
+			input_free_device(input);
+			input = NULL;
+			return retval;
+		}
+	}
 
 	TS_DBG("pdata->width=%d pdata->height=%d", pdata->width, pdata->height);
 	input_set_abs_params(input, ABS_MT_POSITION_X, 0, pdata->width, 0, 0);
@@ -1030,6 +1037,7 @@ static int ts_register_input_dev(struct ts_data *pdata)
 	if (retval < 0) {
 		TS_ERR("Failed to register input device.");
 		input_free_device(input);
+		input = NULL;
 		return retval;
 	}
 
@@ -1940,22 +1948,22 @@ static ssize_t ts_register_show(struct device *dev,
 
 	if (!ts_get_mode(pdata, TSMODE_CONTROLLER_EXIST)
 		|| !ts_get_mode(pdata, TSMODE_CONTROLLER_STATUS)) {
-		size += sprintf(buf, "No controller exist or controller busy!\n");
+		size += snprintf(buf, PAGE_SIZE, "No controller exist or controller busy!\n");
 	} else if (pdata->stashed_reg > 0xFFFF) {
-		size += sprintf(buf, "Invalid register address: %d\n", pdata->stashed_reg);
+		size += snprintf(buf, PAGE_SIZE, "Invalid register address: %d\n", pdata->stashed_reg);
 	} else if (pdata->stashed_reg > 0xFF
 		&& ((pdata->controller->config & TSCONF_ADDR_WIDTH_MASK) == TSCONF_ADDR_WIDTH_BYTE)) {
-		size += sprintf(buf, "Register address out of range: 0x%04X\n", pdata->stashed_reg);
+		size += snprintf(buf, PAGE_SIZE, "Register address out of range: 0x%04X\n", pdata->stashed_reg);
 	} else {
 		ret = ts_reg_read(pdata->stashed_reg, data, 1);
 		if (ret != 1) {
-			size += sprintf(buf, "Read error!\n");
+			size += snprintf(buf, PAGE_SIZE, "Read error!\n");
 		} else {
 			if ((pdata->controller->config & TSCONF_ADDR_WIDTH_MASK) == TSCONF_ADDR_WIDTH_BYTE)
-				size += sprintf(buf, "Address=0x%02X, Val=0x%02X\n",
+				size += snprintf(buf, PAGE_SIZE, "Address=0x%02X, Val=0x%02X\n",
 					pdata->stashed_reg, data[0]);
 			else
-				size += sprintf(buf, "Address=0x%04X, Val=0x%02X\n",
+				snprintf(buf, PAGE_SIZE, "Address=0x%04X, Val=0x%02X\n",
 					pdata->stashed_reg, data[0]);
 		}
 	}
@@ -1995,7 +2003,7 @@ static struct device_attribute dev_attr_register = {
 static ssize_t ts_input_name_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
-	return sprintf(buf, "%s\n", ATS_INPUT_DEV);
+	return snprintf(buf, PAGE_SIZE, "%s\n", ATS_INPUT_DEV);
 }
 
 static struct device_attribute dev_attr_input_name = {
@@ -2013,14 +2021,14 @@ static ssize_t ts_ui_info_show(struct device *dev,
 	struct ts_data *pdata = platform_get_drvdata(to_platform_device(dev));
 	int size = 0, i;
 
-	size += sprintf(buf + size, "\n======Current Setting======\n");
-	size += sprintf(buf + size, "Report area: %u x %u\n",
+	size += snprintf(buf, PAGE_SIZE, "\n======Current Setting======\n");
+	size += snprintf(buf + size, PAGE_SIZE - size, "Report area: %u x %u\n",
 		pdata->width, pdata->height);
 	if (ts_get_mode(pdata, TSMODE_VKEY_REPORT_ABS)) {
-		size += sprintf(buf + size, "Virtual key reported as KEY event");
+		size += snprintf(buf + size, PAGE_SIZE - size, "Virtual key reported as KEY event");
 	} else {
 		for (i = 0; i < pdata->vkey_count; i++) {
-			size += sprintf(buf + size,
+			size += snprintf(buf + size, PAGE_SIZE - size,
 				"Key: %s(%u) --- (%u, %u), width = %u, height = %u\n",
 				ts_get_keyname(pdata->vkey_list[i].keycode),
 				pdata->vkey_list[i].keycode,
@@ -2028,17 +2036,17 @@ static ssize_t ts_ui_info_show(struct device *dev,
 				pdata->vkey_list[i].width, pdata->vkey_list[i].height);
 		}
 	}
-	size += sprintf(buf + size, "======Current Setting======\n");
+	size += snprintf(buf + size, PAGE_SIZE - size, "======Current Setting======\n");
 
-	size += sprintf(buf + size, "\n======From DTS======\n");
-	size += sprintf(buf + size, "LCD size: %u x %u\n",
+	size += snprintf(buf + size, PAGE_SIZE - size, "\n======From DTS======\n");
+	size += snprintf(buf + size, PAGE_SIZE - size, "LCD size: %u x %u\n",
 		pdata->board->lcd_width, pdata->board->lcd_height);
-	size += sprintf(buf + size, "Surface area: %u x %u\n",
+	size += snprintf(buf + size, PAGE_SIZE - size, "Surface area: %u x %u\n",
 		pdata->board->surface_width, pdata->board->surface_height);
-	size += sprintf(buf + size, "Report area: %u x %u\n",
+	size += snprintf(buf + size, PAGE_SIZE - size, "Report area: %u x %u\n",
 		pdata->board->panel_width, pdata->board->panel_height);
 	for (i = 0; i < pdata->board->virtualkey_count; i++) {
-		size += sprintf(buf + size,
+		size += snprintf(buf + size, PAGE_SIZE - size,
 			"Key: %s(%u) --- (%u, %u), width = %u, height = %u\n",
 			ts_get_keyname(pdata->board->virtualkeys[i].keycode),
 			pdata->board->virtualkeys[i].keycode,
@@ -2047,7 +2055,7 @@ static ssize_t ts_ui_info_show(struct device *dev,
 			pdata->board->virtualkeys[i].width,
 			pdata->board->virtualkeys[i].height);
 	}
-	size += sprintf(buf + size, "======From DTS======\n");
+	size += snprintf(buf + size, PAGE_SIZE - size, "======From DTS======\n");
 
 	return size;
 }
@@ -2071,48 +2079,48 @@ static ssize_t ts_controller_detail_info_show(struct device *dev,
 	char value[1] = { 0 };
 
 	if (!ts_get_mode(pdata, TSMODE_CONTROLLER_EXIST))
-		return sprintf(buf, "Controller doesn't exist!\n");
+		return snprintf(buf, PAGE_SIZE, "Controller doesn't exist!\n");
 
 	c = pdata->controller;
 	if (!ts_get_mode(pdata, TSMODE_CONTROLLER_STATUS))
-		return sprintf(buf, "Controller is busy!\n");
+		return snprintf(buf, PAGE_SIZE, "Controller is busy!\n");
 
-	size += sprintf(buf + size, "\nBacis Properties:\n");
-	size += sprintf(buf + size, ">  name: %s\n", c->name);
-	size += sprintf(buf + size, ">  vendor: %s\n", c->vendor);
+	size += snprintf(buf + size, PAGE_SIZE - size, "\nBacis Properties:\n");
+	size += snprintf(buf + size, PAGE_SIZE - size, ">  name: %s\n", c->name);
+	size += snprintf(buf + size, PAGE_SIZE - size, ">  vendor: %s\n", c->vendor);
 
-	size += sprintf(buf + size, "\nUI Properties:\n");
-	size += sprintf(buf + size, ">  resolution: %u x %u\n", c->panel_width, c->panel_height);
+	size += snprintf(buf + size, PAGE_SIZE - size, "\nUI Properties:\n");
+	size += snprintf(buf + size, PAGE_SIZE - size, ">  resolution: %u x %u\n", c->panel_width, c->panel_height);
 	for (i = 0; i < c->virtualkey_count; i++)
-		size += sprintf(buf + size, ">  virtualkey[%d]: (%u, %u) --- %s (0x%X)\n",
+		size += snprintf(buf + size, PAGE_SIZE - size, ">  virtualkey[%d]: (%u, %u) --- %s (0x%X)\n",
 			i + 1, c->virtualkeys[i].x, c->virtualkeys[i].y,
 			ts_get_keyname(c->virtualkeys[i].keycode), c->virtualkeys[i].keycode);
 
-	size += sprintf(buf + size, "\nBehaviors:\n");
+	size += snprintf(buf + size, PAGE_SIZE - size, "\nBehaviors:\n");
 	if ((c->config & TSCONF_REPORT_TYPE_MASK) == TSCONF_REPORT_TYPE_1)
-		size += sprintf(buf + size, ">  report_type: 1(Type-A)\n");
+		size += snprintf(buf + size, PAGE_SIZE - size, ">  report_type: 1(Type-A)\n");
 	else if ((c->config & TSCONF_REPORT_TYPE_MASK) == TSCONF_REPORT_TYPE_2)
-		size += sprintf(buf + size, ">  report_type: 2(Type-B)\n");
+		size += snprintf(buf + size, PAGE_SIZE - size, ">  report_type: 2(Type-B)\n");
 	else
-		size += sprintf(buf + size, ">  report_type: 3\n");
+		size += snprintf(buf + size, PAGE_SIZE - size, ">  report_type: 3\n");
 
 	if ((c->config & TSCONF_REPORT_MODE_MASK) == TSCONF_REPORT_MODE_IRQ)
-		size += sprintf(buf + size, ">  irq_support: true\n");
+		size += snprintf(buf + size, PAGE_SIZE - size, ">  irq_support: true\n");
 	else
-		size += sprintf(buf + size, ">  irq_support: false\n");
+		size += snprintf(buf + size, PAGE_SIZE - size, ">  irq_support: false\n");
 
 	if ((c->config & TSCONF_POWER_ON_RESET_MASK) == TSCONF_POWER_ON_RESET)
-		size += sprintf(buf + size, ">  power_on_reset: true\n");
+		size += snprintf(buf + size, PAGE_SIZE - size, ">  power_on_reset: true\n");
 	else
-		size += sprintf(buf + size, ">  power_on_reset: false\n");
+		size += snprintf(buf + size, PAGE_SIZE - size, ">  power_on_reset: false\n");
 
-	size += sprintf(buf + size, "\nRegister Values:\n");
+	size += snprintf(buf + size, PAGE_SIZE - size, "\nRegister Values:\n");
 	for (i = 0; i < c->register_count; i++) {
 		if (1 == ts_reg_read(c->registers[i].reg, value, 1))
-			size += sprintf(buf + size, ">  %s: 0x%02X\n",
+			size += snprintf(buf + size, PAGE_SIZE - size, ">  %s: 0x%02X\n",
 				c->registers[i].name, value[0]);
 		else
-			size += sprintf(buf + size, ">  %s: read error!\n",
+			size += snprintf(buf + size, PAGE_SIZE - size, ">  %s: read error!\n",
 				c->registers[i].name);
 	}
 
@@ -2225,48 +2233,48 @@ static ssize_t ts_mode_show(struct device *dev,
 	struct ts_data *pdata = platform_get_drvdata(to_platform_device(dev));
 	int size = 0;
 
-	size += sprintf(buf, "Status code: 0x%lX\n\n", pdata->status);
+	size += snprintf(buf, PAGE_SIZE, "Status code: 0x%lX\n\n", pdata->status);
 
-	size += sprintf(buf + size, "controller            : %s\n",
+	size += snprintf(buf + size, PAGE_SIZE - size, "controller            : %s\n",
 		ts_get_mode(pdata, TSMODE_CONTROLLER_EXIST) ? "exist" : "not found");
 
-	size += sprintf(buf + size, "polling               : %s\n",
+	size += snprintf(buf + size, PAGE_SIZE - size, "polling               : %s\n",
 		ts_get_mode(pdata, TSMODE_POLLING_MODE) ? "enabled" : "not enabled");
 
-	size += sprintf(buf + size, "polling status        : %s\n",
+	size += snprintf(buf + size, PAGE_SIZE - size, "polling status        : %s\n",
 		ts_get_mode(pdata, TSMODE_POLLING_STATUS) ? "working" : "stopped");
 
-	size += sprintf(buf + size, "interrupt             : %s\n",
+	size += snprintf(buf + size, PAGE_SIZE - size, "interrupt             : %s\n",
 		ts_get_mode(pdata, TSMODE_IRQ_MODE) ? "enabled" : "not enabled");
 
-	size += sprintf(buf + size, "interrupt status      : %s\n",
+	size += snprintf(buf + size, PAGE_SIZE - size, "interrupt status      : %s\n",
 		ts_get_mode(pdata, TSMODE_IRQ_STATUS) ? "working" : "stopped");
 
-	size += sprintf(buf + size, "suspend status        : %s\n",
+	size += snprintf(buf + size, PAGE_SIZE - size, "suspend status        : %s\n",
 		(pdata->tpm_status == TPM_SUSPENDED) ? "suspend" : "no suspend");
 
-	size += sprintf(buf + size, "controller status     : %s\n",
+	size += snprintf(buf + size, PAGE_SIZE - size, "controller status     : %s\n",
 		ts_get_mode(pdata, TSMODE_CONTROLLER_STATUS) ? "available" : "busy");
 
-	size += sprintf(buf + size, "virtual key report    : %s\n",
+	size += snprintf(buf + size, PAGE_SIZE - size, "virtual key report    : %s\n",
 		ts_get_mode(pdata, TSMODE_VKEY_REPORT_ABS) ? "abs" : "key");
 
-	size += sprintf(buf + size, "firmware auto upgrade : %s\n",
+	size += snprintf(buf + size, PAGE_SIZE - size, "firmware auto upgrade : %s\n",
 		ts_get_mode(pdata, TSMODE_AUTO_UPGRADE_FW) ? "enabled" : "not enabled");
 
-	size += sprintf(buf + size, "workqueue status      : %s\n",
+	size += snprintf(buf + size, PAGE_SIZE - size, "workqueue status      : %s\n",
 		ts_get_mode(pdata, TSMODE_WORKQUEUE_STATUS) ? "enabled" : "not enabled");
 
-	size += sprintf(buf + size, "noise status      : %s\n",
+	size += snprintf(buf + size, PAGE_SIZE - size, "noise status      : %s\n",
 		ts_get_mode(pdata, TSMODE_NOISE_STATUS) ? "enabled" : "not enabled");
 
-	size += sprintf(buf + size, "print UP & DOWN       : %s\n",
+	size += snprintf(buf + size, PAGE_SIZE - size, "print UP & DOWN       : %s\n",
 		ts_get_mode(pdata, TSMODE_DEBUG_UPDOWN) ? "enabled" : "not enabled");
 
-	size += sprintf(buf + size, "print raw data        : %s\n",
+	size += snprintf(buf + size, PAGE_SIZE - size, "print raw data        : %s\n",
 		ts_get_mode(pdata, TSMODE_DEBUG_RAW_DATA) ? "enabled" : "not enabled");
 
-	size += sprintf(buf + size, "print irq time        : %s\n",
+	size += snprintf(buf + size, PAGE_SIZE - size, "print irq time        : %s\n",
 		ts_get_mode(pdata, TSMODE_DEBUG_IRQTIME) ? "enabled" : "not enabled");
 
 	return size;
@@ -2398,8 +2406,8 @@ static ssize_t ts_status_show(struct device *dev,
 	"TPS_DEON"
 	};
 
-	size += sprintf(buf, "ps status : %s\n", tps_status_str[pdata->tps_status]);
-	size += sprintf(buf + size, "pm status : %s\n", tpm_status_str[pdata->tpm_status]);
+	size += snprintf(buf, PAGE_SIZE, "ps status : %s\n", tps_status_str[pdata->tps_status]);
+	size += snprintf(buf + size, PAGE_SIZE - size, "pm status : %s\n", tpm_status_str[pdata->tpm_status]);
 	return size;
 }
 
@@ -2591,6 +2599,9 @@ static int ts_probe(struct platform_device *pdev)
 		pdata->controller->pdata = pdata;
 		if (pdata->controller->custom_initialization)
 			pdata->controller->custom_initialization();
+	} else {
+		TS_ERR("fail to find controller ");
+		return -ENOMEM;
 	}
 
 	TS_INFO("ps_status:%d, sensorhub_status:%d, upgrade_status:%d, upgrade_sw:%d",

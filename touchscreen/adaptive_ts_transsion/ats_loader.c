@@ -688,6 +688,7 @@ static void ts_release_platform_dev(struct device *dev)
 	struct platform_device *pdev = to_platform_device(dev);
 
 	kfree(pdev);
+	pdev = NULL;
 }
 
 /* register low layer bus access */
@@ -728,6 +729,7 @@ int ts_register_bus_dev(struct device *parent)
 	if (retval < 0) {
 		TS_ERR("failed to register platform device!");
 		kfree(pdev);
+		pdev = NULL;
 		return retval;
 	}
 
@@ -814,9 +816,9 @@ int ts_board_init(void)
 	}
 #ifndef CONFIG_TRANSSION_CALI_BACKLIGHT_ENABLE
 #ifdef CONFIG_TRANSSION_SUPPORT
-		board->suspend_on_init = transsion_cali_mode;
+	board->suspend_on_init = transsion_cali_mode;
 #else
-		board->suspend_on_init = false;//binhua cali;
+	board->suspend_on_init = false;//binhua cali;
 #endif
 #endif
 
