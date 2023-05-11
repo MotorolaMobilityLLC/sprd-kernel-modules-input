@@ -482,7 +482,9 @@ static ssize_t fts_irq_show(
     struct fts_ts_data *ts_data = dev_get_drvdata(dev);
     struct irq_desc *desc = irq_to_desc(ts_data->irq);
 
-    count = snprintf(buf, PAGE_SIZE, "irq_depth:%d\n", desc->depth);
+    if (desc) {
+        count = snprintf(buf, PAGE_SIZE, "irq_depth:%d\n", desc->depth);
+    }
 
     return count;
 }
@@ -1018,14 +1020,20 @@ static ssize_t fts_log_level_store(
     struct device_attribute *attr, const char *buf, size_t count)
 {
     int value = 0;
+    int ret = 0;
     struct fts_ts_data *ts_data = dev_get_drvdata(dev);
     struct input_dev *input_dev = ts_data->input_dev;
 
     FTS_FUNC_ENTER();
     mutex_lock(&input_dev->mutex);
-    sscanf(buf, "%d", &value);
-    FTS_DEBUG("log level:%d->%d", ts_data->log_level, value);
-    ts_data->log_level = value;
+    ret = kstrtoint(buf, 10, &value);
+    if (!ret) {
+        FTS_DEBUG("log level:%d->%d", ts_data->log_level, value);
+        ts_data->log_level = value;
+    } else {
+        FTS_DEBUG("log level:%s invalid" buf);
+    }
+
     mutex_unlock(&input_dev->mutex);
     FTS_FUNC_EXIT();
 
@@ -1053,17 +1061,22 @@ static ssize_t fts_pen_store(
     struct device_attribute *attr, const char *buf, size_t count)
 {
     int value = 0;
+    int ret = 0;
     struct fts_ts_data *ts_data = dev_get_drvdata(dev);
     struct input_dev *input_dev = ts_data->input_dev;
 
     FTS_FUNC_ENTER();
     mutex_lock(&input_dev->mutex);
-    sscanf(buf, "%d", &value);
-    FTS_DEBUG("pen event:%d->%d", ts_data->pen_etype, value);
-    ts_data->pen_etype = value;
+    ret = kstrtoint(buf, 10, &value);
+    if (!ret) {
+        FTS_DEBUG("pen event:%d->%d", ts_data->pen_etype, value);
+        ts_data->pen_etype = value;
+    } else {
+        FTS_DEBUG("input pen event:%s invalid", buf);
+    }
+
     mutex_unlock(&input_dev->mutex);
     FTS_FUNC_EXIT();
-
     return count;
 }
 
@@ -1087,17 +1100,20 @@ static ssize_t fts_touchsize_store(
     struct device_attribute *attr, const char *buf, size_t count)
 {
     int value = 0;
+    int ret = 0;
     struct fts_ts_data *ts_data = dev_get_drvdata(dev);
     struct input_dev *input_dev = ts_data->input_dev;
 
     FTS_FUNC_ENTER();
     mutex_lock(&input_dev->mutex);
-    sscanf(buf, "%d", &value);
-    if ((value > 2) && (value < FTS_MAX_TOUCH_BUF)) {
+    ret = kstrtoint(buf, 10, &value);
+    if ((value > 2) && (value < FTS_MAX_TOUCH_BUF) && (ret == 0)) {
         FTS_DEBUG("touch size:%d->%d", ts_data->touch_size, value);
         ts_data->touch_size = value;
-    } else
-        FTS_DEBUG("touch size:%d invalid", value);
+    } else {
+        FTS_DEBUG("input touch size:%s invalid", buf);
+    }
+
     mutex_unlock(&input_dev->mutex);
     FTS_FUNC_EXIT();
 
@@ -1125,14 +1141,20 @@ static ssize_t fts_tamode_store(
     struct device_attribute *attr, const char *buf, size_t count)
 {
     int value = 0;
+    int ret = 0;
     struct fts_ts_data *ts_data = dev_get_drvdata(dev);
     struct input_dev *input_dev = ts_data->input_dev;
 
     FTS_FUNC_ENTER();
     mutex_lock(&input_dev->mutex);
-    sscanf(buf, "%d", &value);
-    ts_data->touch_analysis_support = !!value;
-    FTS_DEBUG("set touch analysis:%d", ts_data->touch_analysis_support);
+    ret = kstrtoint(buf, 10, &value);
+    if (!ret) {
+        ts_data->touch_analysis_support = !!value;
+        FTS_DEBUG("set touch analysis:%d", ts_data->touch_analysis_support);
+    } else {
+        FTS_DEBUG("input touch analysis:%s invalid", buf);
+    }
+
     mutex_unlock(&input_dev->mutex);
     FTS_FUNC_EXIT();
 

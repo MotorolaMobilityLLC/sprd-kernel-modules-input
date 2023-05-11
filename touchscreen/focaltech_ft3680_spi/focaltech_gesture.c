@@ -197,10 +197,12 @@ static ssize_t fts_gesture_bm_store(
     int ret = 0;
 
     mutex_lock(&ts_data->input_dev->mutex);
-    ret = sscanf(buf, "%d", &value);
-    if (ret == 1) {
+    ret = kstrtoint(buf, 10, &value);
+    if (!ret) {
         FTS_DEBUG("gesture bmode:%d->%d", ts_data->gesture_bmode, value);
         ts_data->gesture_bmode = value;
+    } else {
+        FTS_DEBUG("input buf %s invaild", buf);
     }
     mutex_unlock(&ts_data->input_dev->mutex);
 

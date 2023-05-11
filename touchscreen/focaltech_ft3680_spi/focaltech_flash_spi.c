@@ -919,6 +919,10 @@ int fts_enter_test_environment(bool test_state)
 
     msleep(50);
     ret = fts_read_reg(FTS_REG_FACTORY_MODE_DETACH_FLAG, &detach_flag);
+    if (ret < 0) {
+        FTS_ERROR("read detach_flag fail");
+        return -EIO;
+    }
     FTS_INFO("regb4:0x%02x", detach_flag);
 
     return 0;
@@ -1202,6 +1206,10 @@ static void fts_fwupg_work(struct work_struct *work)
     } else {
         msleep(50);
         ret = fts_read_reg(FTS_REG_CHIP_ID, &chip_id);
+        if(ret < 0) {
+            FTS_ERROR("read chip_id fail");
+            return ;
+        }
         FTS_INFO("read chip id:0x%02x", chip_id);
     }
     check_current_mode();
