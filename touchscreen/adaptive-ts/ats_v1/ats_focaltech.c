@@ -69,33 +69,33 @@ static enum ts_result focaltech_upgrade_firmware(struct ts_controller *c,
 	 */
 	if (!force) {
 		if (module_id != 0 && module_id != module_id_host) {
-			pr_err("module id(0x%02X) does not match 0x%02X!",
+			TS_ERR("module id(0x%02X) does not match 0x%02X!",
 				module_id_host, module_id);
 			return TSRESULT_INVALID_BINARY;
 		}
 
 		if ((fw_version != 0) && (fw_version != REG_FIRMWARE_VERSION)
 			&& (fw_version >= fw_version_host)) {
-			pr_warn("our firmware(%d) is newer than host version(%d)"
+			TS_WARN("our firmware(%d) is newer than host version(%d)"
 				, fw_version, fw_version_host);
 			return TSRESULT_OLDER_VERSION;
 		}
 	}
 
-	pr_debug("current version is %d, host version is %d",
+	TS_DEBUG("current version is %d, host version is %d",
 		fw_version, fw_version_host);
-	pr_debug("current module is 0x%02X, host module is 0x%02X",
+	TS_DEBUG("current module is 0x%02X, host module is 0x%02X",
 		module_id, module_id_host);
 
 	/* check firmware size */
 	if (size < 8 || size > 54 * 1024) {
-		pr_err("invalid firmware size: %zu", size);
+		TS_ERR("invalid firmware size: %zu", size);
 		return TSRESULT_INVALID_BINARY;
 	}
 
 	focaltech_hid_to_i2c();
 	for (i = 0; i < FT_MAX_UPGRADE_RETRY; i++) {
-		pr_debug("Phase 1: reset chip");
+		TS_DEBUG("Phase 1: reset chip");
 		/* reset chip */
 		buf[0] = 0xAA;
 		ts_reg_write(REG_WORKING_STATE, buf, 1);
@@ -105,9 +105,9 @@ static enum ts_result focaltech_upgrade_firmware(struct ts_controller *c,
 		msleep(200);
 
 		/* enter upgrade mode */
-		pr_debug("Phase 2: enter mode");
+		TS_DEBUG("Phase 2: enter mode");
 		if (focaltech_hid_to_i2c()) {
-			pr_debug("hid_to_i2c fail, try again");
+			TS_DEBUG("hid_to_i2c fail, try again");
 			continue;
 		}
 		msleep(10);
@@ -115,12 +115,12 @@ static enum ts_result focaltech_upgrade_firmware(struct ts_controller *c,
 		buf[0] = 0x55;
 		buf[1] = 0xAA;
 		if (ts_write(buf, 2) < 0) {
-			pr_debug("write 0x55, 0xAA fail, try again");
+			TS_DEBUG("write 0x55, 0xAA fail, try again");
 			continue;
 		}
 
 		/* check READ-ID */
-		pr_debug("Phase 3: check ID");
+		TS_DEBUG("Phase 3: check ID");
 		msleep(1);
 		buf[0] = 0x90;
 		buf[1] = buf[2] = buf[3] = 0;
@@ -130,14 +130,14 @@ static enum ts_result focaltech_upgrade_firmware(struct ts_controller *c,
 		if (buf[0] == 0x54 && buf[1] == 0x2C)
 			break;
 
-		pr_debug("read id fail: 0x%02X, 0x%02X", buf[0], buf[1]);
+		TS_DEBUG("read id fail: 0x%02X, 0x%02X", buf[0], buf[1]);
 	}
 
 	if (i >= FT_MAX_UPGRADE_RETRY)
 		return TSRESULT_OTHER_UPGRADE_ERROR;
 
 	/* erase app data and panel parameter area */
-	pr_debug("Phase 4: erase data");
+	TS_DEBUG("Phase 4: erase data");
 	buf[0] = 0x61;
 	ts_write(buf, 1);
 	msleep(1350);
@@ -160,7 +160,7 @@ static enum ts_result focaltech_upgrade_firmware(struct ts_controller *c,
 	ts_write(buf, 4);
 
 	/* write firmware into flash */
-	pr_debug("Phase 5: flash firmware");
+	TS_DEBUG("Phase 5: flash firmware");
 	packet_count = size / FT_FIRMWARE_PACKET_LENGTH;
 	fw_buf[0] = 0xBF;
 	fw_buf[1] = 0;
@@ -185,7 +185,7 @@ static enum ts_result focaltech_upgrade_firmware(struct ts_controller *c,
 			ts_read(buf, 2);
 
 			if (((buf[0] << 8) | buf[1]) == (j + 0x1000)) {
-				pr_debug("   flash %d bytes of packet %d",
+				TS_DEBUG("   flash %d bytes of packet %d",
 					FT_FIRMWARE_PACKET_LENGTH, j + 1);
 				break;
 			}
@@ -214,7 +214,7 @@ static enum ts_result focaltech_upgrade_firmware(struct ts_controller *c,
 			ts_read(buf, 2);
 
 			if (((buf[0] << 8) | buf[1]) == (j + 0x1000)) {
-				pr_debug("   flash last %d bytes of packet %d", left, j + 1);
+				TS_DEBUG("   flash last %d bytes of packet %d", left, j + 1);
 				break;
 			}
 			msleep(1);
@@ -223,7 +223,7 @@ static enum ts_result focaltech_upgrade_firmware(struct ts_controller *c,
 	msleep(50);
 
 	/* read checksum */
-	pr_debug("Phase 6: validate checksum");
+	TS_DEBUG("Phase 6: validate checksum");
 	buf[0] = 0x64;
 	ts_write(buf, 1);
 	msleep(300);
@@ -250,13 +250,13 @@ static enum ts_result focaltech_upgrade_firmware(struct ts_controller *c,
 	buf[0] = 0;
 	ts_read(buf, 1);
 	if (buf[0] != crc) {
-		pr_debug("checksum error: should be 0x%02X, but we get 0x%02X",
+		TS_DEBUG("checksum error: should be 0x%02X, but we get 0x%02X",
 			crc, buf[0]);
 		return -EIO;
 	}
 
 	/* reset */
-	pr_debug("Phase 7: reset new firmware");
+	TS_DEBUG("Phase 7: reset new firmware");
 	buf[0] = 0x07;
 	ts_write(buf, 1);
 	msleep(130);
@@ -266,7 +266,7 @@ static enum ts_result focaltech_upgrade_firmware(struct ts_controller *c,
 	fw_version = 0;
 	ts_reg_read(REG_FIRMWARE_VERSION, &fw_version, 1);
 	if (!ret)
-		pr_debug("upgrade finished, new version is %d", fw_version);
+		TS_DEBUG("upgrade finished, new version is %d", fw_version);
 
 	return TSRESULT_UPGRADE_FINISHED;
 }
@@ -294,24 +294,24 @@ static int focaltech_fetch(struct ts_controller *c, struct ts_point *points)
 
 	if (!ftc->single_transfer_only) {
 		if (ts_reg_read(0, buf, FT_HEADER_LEN) != FT_HEADER_LEN) {
-			pr_err("failed to read head data");
+			TS_ERR("failed to read head data");
 			return -1;
 		}
 	} else {
 		/* read all bytes once! */
 		if (ts_reg_read(0, buf, FT_ALL_DATA_LEN) != FT_ALL_DATA_LEN) {
-			pr_err("failed to read data");
+			TS_ERR("failed to read data");
 			return -1;
 		}
 	}
 
 	p_num = buf[FT_HEADER_LEN - 1];
 #ifdef FT_DEBUG_RAW_POINT
-	pr_debug("p_num=%d", p_num);
+	TS_DEBUG("p_num=%d", p_num);
 #endif
 	/* check point number */
 	if (p_num > FT_MAX_POINTS) {
-		pr_warn("invalid point_num: %d, ignore this packet",
+		TS_WARN("invalid point_num: %d, ignore this packet",
 			buf[FT_HEADER_LEN - 1]);
 		return -1;
 	} else if (p_num == 0) {
@@ -332,7 +332,7 @@ static int focaltech_fetch(struct ts_controller *c, struct ts_point *points)
 	if (!ftc->single_transfer_only) {
 		if (FT_POINT_LEN * p_num != ts_reg_read(FT_HEADER_LEN,
 			buf + FT_HEADER_LEN, FT_POINT_LEN * p_num)) {
-			pr_err("failed to read point data");
+			TS_ERR("failed to read point data");
 			return -1;
 		}
 	}
@@ -340,7 +340,7 @@ static int focaltech_fetch(struct ts_controller *c, struct ts_point *points)
 	/* calculate points */
 	for (i = 0; i < p_num; i++) {
 #ifdef FT_DEBUG_RAW_POINT
-		pr_debug("i=%d, 0x%02X, 0x%02X, 0x%02X, 0x%02X, 0x%02X, 0x%02X",
+		TS_DEBUG("i=%d, 0x%02X, 0x%02X, 0x%02X, 0x%02X, 0x%02X, 0x%02X",
 			i, buf[FT_HEADER_LEN+FT_POINT_LEN*i],
 			buf[FT_HEADER_LEN+FT_POINT_LEN*i+1],
 			buf[FT_HEADER_LEN+FT_POINT_LEN*i+2],
@@ -377,17 +377,17 @@ static enum ts_result focaltech_handle_event(
 		if (data) {
 			pn = (struct device_node *)data;
 			if (!of_property_read_u8(pn, "a8", &ftc->a8))
-				pr_debug("parse a8 value: 0x%02X", ftc->a8);
+				TS_DEBUG("parse a8 value: 0x%02X", ftc->a8);
 			ftc->single_transfer_only = !!of_get_property(pn,
 				"single-transfer-only", NULL);
 			if (ftc->single_transfer_only)
-				pr_debug("single transfer only");
+				TS_DEBUG("single transfer only");
 		}
 		if ((ts_reg_read(REG_CHIP_ID, &a3, 1) != 1)
 			|| (ts_reg_read(REG_MODULE_ID, &a8, 1) != 1)
 			|| (a3 != ftc->a3))
 			ret = TSRESULT_EVENT_NOT_HANDLED;
-		pr_debug("read a8 value from chip: 0x%02X", a8);
+		TS_DEBUG("read a8 value from chip: 0x%02X", a8);
 		break;
 	case TSEVENT_SUSPEND:
 		val = 0x03;
