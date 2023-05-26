@@ -41,7 +41,7 @@ static int ts_adf_event_handler(
 		return NOTIFY_DONE;
 
 	adf_event_data = *(int *)event->data;
-	pr_debug("receive adf event with adf_event_data=%d", adf_event_data);
+	TS_DEBUG("receive adf event with adf_event_data=%d", adf_event_data);
 
 	switch (adf_event_data) {
 	case DRM_MODE_DPMS_ON:
@@ -51,7 +51,7 @@ static int ts_adf_event_handler(
 		p->inform(p->pdata, TSEVENT_SUSPEND, NULL);
 		break;
 	default:
-		pr_warn("receive adf event with error data, adf_event_data=%d",
+		TS_WARN("receive adf event with error data, adf_event_data=%d",
 			adf_event_data);
 		break;
 	}
@@ -79,15 +79,15 @@ static int ts_usb_event_handler(
 
 	switch (action) {
 	case USB_CABLE_PLUG_IN:
-		pr_debug("receive usb plug-in event");
+		TS_DEBUG("receive usb plug-in event");
 		p->inform(p->pdata, TSEVENT_NOISE_HIGH, NULL);
 		break;
 	case USB_CABLE_PLUG_OUT:
-		pr_debug("receive usb plug-out event");
+		TS_DEBUG("receive usb plug-out event");
 		p->inform(p->pdata, TSEVENT_NOISE_NORMAL, NULL);
 		break;
 	default:
-		pr_warn("receive usb event with unknown action: %lu", action);
+		TS_WARN("receive usb event with unknown action: %lu", action);
 		break;
 	}
 	return NOTIFY_OK;
