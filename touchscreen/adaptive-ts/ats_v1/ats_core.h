@@ -62,6 +62,11 @@
  *                      structs                       *
  * ================================================== */
 
+struct ts_firmware_upgrade_param {
+	struct ts_data *pdata;
+	bool force_upgrade;
+};
+
 /*
  * defines supported low layer bus type
  */

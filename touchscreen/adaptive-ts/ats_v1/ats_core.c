@@ -460,11 +460,6 @@ static int ts_export_gpio(struct ts_data *pdata)
 }
 #endif
 
-struct ts_firmware_upgrade_param {
-	struct ts_data *pdata;
-	bool force_upgrade;
-};
-
 /*
  * firmware upgrading worker, asynchronous callback from firmware subsystem
  */
@@ -583,13 +578,13 @@ static int ts_register_input_dev(struct ts_data *pdata)
 	input_set_capability(input, EV_ABS, ABS_MT_POSITION_Y);
 	/* TODO report pressure */
 	/* input_set_capability(input, EV_ABS, ABS_MT_PRESSURE); */
-        flag = ((pdata->controller)&&(ts_get_mode(pdata, TSMODE_CONTROLLER_EXIST)
-			&& ((pdata->controller->config & TSCONF_REPORT_TYPE_MASK)
-			!= TSCONF_REPORT_TYPE_1)));
+	flag = ((pdata->controller)&&(ts_get_mode(pdata, TSMODE_CONTROLLER_EXIST)
+		&& ((pdata->controller->config & TSCONF_REPORT_TYPE_MASK)
+		!= TSCONF_REPORT_TYPE_1)));
 	if (flag){
 		retval = input_mt_init_slots(input, TS_MAX_POINTS, INPUT_MT_DIRECT);
 		if (retval)
-		return retval;
+			return retval;
 	}
 	input_set_abs_params(input, ABS_MT_POSITION_X, 0, pdata->width, 0, 0);
 	input_set_abs_params(input, ABS_MT_POSITION_Y, 0, pdata->height, 0, 0);
@@ -602,6 +597,7 @@ static int ts_register_input_dev(struct ts_data *pdata)
 	if (retval < 0) {
 		dev_err(dev, "Failed to register input device.");
 		input_free_device(input);
+		input = NULL;
 		return retval;
 	}
 
@@ -955,6 +951,9 @@ static int ts_isr_control(struct ts_data *pdata, bool _register)
 		case TSCONF_IRQ_TRIG_LEVEL_LOW:
 			flags = IRQF_TRIGGER_LOW;
 			break;
+		default:
+			TS_WARN("IRQF_TRIGGER match fail!");
+			break;
 		}
 
 		flags |= IRQF_ONESHOT;
@@ -1125,11 +1124,11 @@ static void ts_notifier_worker(struct work_struct *work)
 		&& pdata->controller->handle_event) {
 		if (ts_get_mode(pdata, TSMODE_NOISE_STATUS)) {
 			ts_set_mode(pdata, TSMODE_NOISE_STATUS, false);
-			pr_info("trying to open hardware anti-noise algorithm...");
+			TS_INFO("trying to open hardware anti-noise algorithm...");
 			pdata->controller->handle_event(pdata->controller,
 			TSEVENT_NOISE_HIGH, NULL);
 		} else {
-			pr_info("closing hardware anti-noise algorithm...");
+			TS_INFO("closing hardware anti-noise algorithm...");
 			pdata->controller->handle_event(pdata->controller,
 			TSEVENT_NOISE_NORMAL, NULL);
 		}
@@ -1201,6 +1200,7 @@ static ssize_t ts_firmware_upgrade_store(struct device *dev,
 		/* upgrading with designated firmware file */
 		ts_request_firmware_upgrade(pdata, name, true);
 		kfree(name);
+		name = NULL;
 	} else if (count == 1) {
 		ts_request_firmware_upgrade(pdata, NULL, buf[0] == 'f');
 	}
@@ -1224,8 +1224,9 @@ static ssize_t ts_register_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
 	struct ts_data *pdata = platform_get_drvdata(to_platform_device(dev));
-	int size = 0, ret = 0;
 	unsigned char data[1];
+	ssize_t size = 0;
+	int ret = 0;
 
 	if (!ts_get_mode(pdata, TSMODE_CONTROLLER_EXIST)
 		|| !ts_get_mode(pdata, TSMODE_CONTROLLER_STATUS)) {
@@ -1263,9 +1264,9 @@ static ssize_t ts_register_store(struct device *dev,
 	int value = 0;
 
 	if (kstrtoint(buf, 16, &value) < 0) {
-		pr_warn("fail to convert \"%s\" to integer", buf);
+		TS_WARN("fail to convert \"%s\" to integer", buf);
 	} else {
-		pr_info("receive register address: %d", value);
+		TS_INFO("receive register address: %d", value);
 		pdata->stashed_reg = value;
 	}
 
@@ -1300,7 +1301,8 @@ static ssize_t ts_ui_info_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
 	struct ts_data *pdata = platform_get_drvdata(to_platform_device(dev));
-	int size = 0, i;
+	ssize_t size = 0;
+	int i;
 
 	size += sprintf(buf + size, "\n======Current Setting======\n");
 	size += sprintf(buf + size, "Report area: %u x %u\n",
@@ -1356,8 +1358,9 @@ static ssize_t ts_controller_detail_info_show(struct device *dev,
 {
 	struct ts_data *pdata = platform_get_drvdata(to_platform_device(dev));
 	struct ts_controller *c = NULL;
-	int size = 0, i;
 	char value[1] = { 0 };
+	ssize_t size = 0;
+	int i;
 
 	if (!ts_get_mode(pdata, TSMODE_CONTROLLER_EXIST))
 		return sprintf(buf, "Controller doesn't exist!\n");
@@ -1512,7 +1515,7 @@ static ssize_t ts_mode_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
 	struct ts_data *pdata = platform_get_drvdata(to_platform_device(dev));
-	int size = 0;
+	ssize_t size = 0;
 
 	size += sprintf(buf, "Status code: 0x%lX\n\n", pdata->status);
 
@@ -1576,29 +1579,29 @@ static ssize_t ts_mode_store(struct device *dev,
 	if (!strncmp(buf, "irq_enable", min(cmd_length, 10))) {
 		if (count  == cmd_length + 2) {
 			cmd = buf[count - 1] - '0';
-			pr_info("irq_enable, cmd = %d", cmd);
+			TS_INFO("irq_enable, cmd = %d", cmd);
 			ts_enable_irq(pdata, !!cmd);
 		}
 	} else if (!strncmp(buf, "raw_data", min(cmd_length, 8))) {
 		if (count == cmd_length + 2) {
 			cmd = buf[count - 1] - '0';
-			pr_info("raw_data, cmd = %d", cmd);
+			TS_INFO("raw_data, cmd = %d", cmd);
 			ts_set_mode(pdata, TSMODE_DEBUG_RAW_DATA, !!cmd);
 		}
 	} else if (!strncmp(buf, "up_down", min(cmd_length, 7))) {
 		if (count == cmd_length + 2) {
 			cmd = buf[count - 1] - '0';
-			pr_info("up_down, cmd = %d", cmd);
+			TS_INFO("up_down, cmd = %d", cmd);
 			ts_set_mode(pdata, TSMODE_DEBUG_UPDOWN, !!cmd);
 		}
 	} else if (!strncmp(buf, "irq_time", min(cmd_length, 8))) {
 		if (count == cmd_length + 2) {
 			cmd = buf[count - 1] - '0';
-			pr_info("irq_time, cmd = %d", cmd);
+			TS_INFO("irq_time, cmd = %d", cmd);
 			ts_set_mode(pdata, TSMODE_DEBUG_IRQTIME, !!cmd);
 		}
 	} else {
-		pr_info("unrecognized cmd");
+		TS_INFO("unrecognized cmd");
 	}
 
 	return count + 1;
@@ -1824,8 +1827,7 @@ static int ts_filesys_create(struct ts_data *pdata)
 		retval = sysfs_create_group(pdata->vkey_obj, &ts_virtualkey_attr_group);
 		if (retval < 0) {
 			dev_err(dev, "Fail to create virtualkey files!");
-			kobject_put(pdata->vkey_obj);
-			return -ENOMEM;
+			goto err_creat_virtualkey_group;
 		}
 		dev_dbg(dev, "virtualkey sysfiles created");
 	}
@@ -1835,17 +1837,27 @@ static int ts_filesys_create(struct ts_data *pdata)
 		&ts_debug_attr_group);
 	if (retval < 0) {
 		dev_err(dev, "Fail to create debug files!");
-		return -ENOMEM;
+		goto err_creat_debug_group;
 	}
 
 	/* convenient access to sysfs node */
 	retval = sysfs_create_link(NULL, &pdata->pdev->dev.kobj, "touchscreen");
 	if (retval < 0) {
 		dev_err(dev, "Failed to create link!");
-		return -ENOMEM;
+		goto err_creat_link;
 	}
 
 	return 0;
+
+err_creat_link:
+	sysfs_remove_group(&pdata->pdev->dev.kobj, &ts_debug_attr_group);
+err_creat_debug_group:
+	if (ts_get_mode(pdata, TSMODE_VKEY_REPORT_ABS) && pdata->vkey_list)
+		sysfs_remove_group(pdata->vkey_obj, &ts_virtualkey_attr_group);
+err_creat_virtualkey_group:
+	if (ts_get_mode(pdata, TSMODE_VKEY_REPORT_ABS) && pdata->vkey_list)
+		kobject_put(pdata->vkey_obj);
+	return retval;
 }
 
 static void ts_filesys_remove(struct ts_data *pdata)
@@ -1936,7 +1948,7 @@ static int ts_probe(struct platform_device *pdev)
 	retval = ts_request_gpio(pdata);
 	if (retval) {
 		dev_err(dev, "Failed to request gpios!");
-		return retval;
+		goto err_gpio_request;
 	}
 
 #ifdef CONFIG_GPIO_SYSFS
@@ -1990,14 +2002,14 @@ static int ts_probe(struct platform_device *pdev)
 	retval = ts_filesys_create(pdata);
 	if (retval) {
 		dev_err(dev, "Failed to create sys files.");
-		return retval;
+		goto err_create_filesys;
 	}
 
 	/* also we need to register input device */
 	retval = ts_register_input_dev(pdata);
 	if (retval) {
 		dev_err(dev, "Failed to register input device.");
-		return retval;
+		goto err_input_register;
 	}
 
 	/* finally we're gonna report data */
@@ -2038,7 +2050,7 @@ static int ts_probe(struct platform_device *pdev)
 	if (IS_ERR(pdata->notifier_workqueue)) {
 		retval = -ESRCH;
 		dev_err(dev, "failed to create notifier_workqueue!");
-		return retval;
+		goto err_creat_workqueue;
 	}
 
 	/* register external events */
@@ -2046,7 +2058,7 @@ static int ts_probe(struct platform_device *pdev)
 	if (retval < 0)
 		dev_err(dev, "error in register external event!");
 
-	pr_info("ts platform device probe OK");
+	TS_INFO("ts platform device probe OK");
 	pdata->upgrade_lock = wakeup_source_create("ats__wakelock");
 	wakeup_source_add(pdata->upgrade_lock);
 	if (pdata->board->suspend_on_init && pdata->controller){
@@ -2055,6 +2067,20 @@ static int ts_probe(struct platform_device *pdev)
 
 	ts_suspend_cali_autotest(dev);
 	return 0;
+
+err_creat_workqueue:
+	if (pdata->notifier_workqueue)
+		destroy_workqueue(pdata->notifier_workqueue);
+err_input_register:
+err_create_filesys:
+err_gpio_request:
+	if (gpio_is_valid(pdata->board->rst_gpio))
+		gpio_free(pdata->board->rst_gpio);
+	if (gpio_is_valid(pdata->board->int_gpio))
+		gpio_free(pdata->board->int_gpio);
+	kfree(pdata);
+	pdata = NULL;
+	return retval;
 }
 
 static int ts_remove(struct platform_device *pdev)
@@ -2071,7 +2097,7 @@ static int ts_remove(struct platform_device *pdev)
 	cancel_work_sync(&pdata->notifier_work);
 	destroy_workqueue(pdata->notifier_workqueue);
 	pdata->status = 0;
-        wakeup_source_remove(pdata->upgrade_lock);
+	wakeup_source_remove(pdata->upgrade_lock);
 	wakeup_source_destroy(pdata->upgrade_lock);
 	ts_filesys_remove(pdata);
 	ts_close_controller(pdata);
@@ -2094,9 +2120,9 @@ static struct platform_driver ats_driver = {
 static int verify_lcd_name_validation()
 {
 	int i;
-	for(i=0;i<ARRAY_SIZE(lcd_names_support);i++){
-		if(!strncmp(lcd_names_support[i],lcd_name,strlen(lcd_name))){
-			pr_info("TP match lcd_name [%s] successful\n",lcd_name);
+	for(i = 0; i < ARRAY_SIZE(lcd_names_support); i++) {
+		if(!strncmp(lcd_names_support[i],lcd_name,strlen(lcd_name))) {
+			TS_INFO("TP match lcd_name [%s] successful\n",lcd_name);
 			return 0;
 		}
 	}
@@ -2108,19 +2134,19 @@ static int __init ts_init(void)
 	int retval;
 	retval = get_bootargs(lcd_name, "lcd_name");
 	if(verify_lcd_name_validation()){
-		pr_err("TP not match lcd_name, please checking\n");
+		TS_ERR("TP not match lcd_name, please checking\n");
 		return 0;
 	}
 
 	retval = focaltech_init();
 	if (retval) {
-		pr_err("focaltch init failed!");
+		TS_ERR("focaltch init failed!");
 		return retval;
 	}
 
 	retval = ts_board_init();
 	if (retval) {
-		pr_err("board init failed!");
+		TS_ERR("board init failed!");
 		return retval;
 	}
 

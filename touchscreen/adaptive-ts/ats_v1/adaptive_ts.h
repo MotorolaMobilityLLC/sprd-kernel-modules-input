@@ -13,6 +13,8 @@ extern bool ats_debug_flag;
 	pr_warn(TAG " %s() " fmt "\n", __func__, ##__VA_ARGS__)
 #define TS_INFO(fmt, ...) \
 	pr_info(TAG " %s() " fmt "\n", __func__, ##__VA_ARGS__)
+#define TS_DEBUG(fmt, ...) \
+	pr_debug(TAG " %s() " fmt "\n", __func__, ##__VA_ARGS__)
 #define TS_DBG(fmt, ...) \
 	do { \
 		if (ts_dbg_level > 0) \
