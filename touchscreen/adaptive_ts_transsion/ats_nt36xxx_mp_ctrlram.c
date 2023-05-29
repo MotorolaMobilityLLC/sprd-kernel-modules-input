@@ -381,7 +381,7 @@ static int32_t nvt_save_rawdata_to_csv(int32_t *rawdata, uint8_t x_ch, uint8_t y
 	for (y = 0; y < y_ch; y++) {
 		for (x = 0; x < x_ch; x++) {
 			iArrayIndex = y * x_ch + x;
-			size = snprintf(fbufp + iArrayIndex * 7 + y * 2, 8192, "%5d, ", rawdata[iArrayIndex]);
+			size += snprintf(fbufp + iArrayIndex * 7 + y * 2, 8192 - size, "%5d, ", rawdata[iArrayIndex]);
 		}
 		nvt_print_data_log_in_one_line(rawdata + y * x_ch, x_ch);
 		printk("\n");

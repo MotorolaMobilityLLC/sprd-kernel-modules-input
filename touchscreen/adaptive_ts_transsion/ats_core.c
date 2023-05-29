@@ -1944,7 +1944,7 @@ static ssize_t ts_register_show(struct device *dev,
 {
 	struct ts_data *pdata = platform_get_drvdata(to_platform_device(dev));
 	int size = 0, ret = 0;
-	unsigned char data[1];
+	unsigned char data[1] = {0};
 
 	if (!ts_get_mode(pdata, TSMODE_CONTROLLER_EXIST)
 		|| !ts_get_mode(pdata, TSMODE_CONTROLLER_STATUS)) {
