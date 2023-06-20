@@ -1,1 +1,0 @@
-obj-y += focaltech_upgrade_ft6436u.o
