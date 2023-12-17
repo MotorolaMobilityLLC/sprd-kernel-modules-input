@@ -34,10 +34,16 @@
 
 static u32 usbcable_eint_num = 0;
 static u32 usbcable_eint_num1 = 0;
+static u32 usbcable_eint_num2 = 0;
+static u32 usbcable_eint_num3 = 0;
 static u32 usbcable_gpio_num = 0,usbcable_gpio_deb = 0;
 static u32 usbcable_gpio_num1 = 0;
+static u32 usbcable_gpio_num2 = 0;
+static u32 usbcable_gpio_num3 = 0;
 static int last_eint_level = 0;
 static int last_eint_level1 = 0;
+static int last_eint_level2 = 0;
+static int last_eint_level3 = 0;
 static struct input_dev *cable_input_dev;
 
 static int usbcable_probe(struct platform_device *pdev);
@@ -71,6 +77,18 @@ unsigned int get_rf_gpio_value1(void)
 }
 EXPORT_SYMBOL(get_rf_gpio_value1);
 
+unsigned int get_rf_gpio_value2(void)
+{
+        return last_eint_level2;
+}
+EXPORT_SYMBOL(get_rf_gpio_value2);
+
+unsigned int get_rf_gpio_value3(void)
+{
+        return last_eint_level3;
+}
+EXPORT_SYMBOL(get_rf_gpio_value3);
+
  static irqreturn_t usbcable_irq_handler(int irq, void *dev)
  {
 	int level = 0;
@@ -100,6 +118,40 @@ static irqreturn_t usbcable_irq_handler1(int irq, void *dev)
                 input_report_key(cable_input_dev, KEY_TEEN, level);
                 input_sync(cable_input_dev);
                 last_eint_level1 = level;
+        }
+        //FUNCTION_EXIT;
+        return IRQ_HANDLED;
+}
+
+static irqreturn_t usbcable_irq_handler2(int irq, void *dev)
+{
+        int level = 0;
+        //FUNCTION_ENTER;
+
+        level = gpio_get_value(usbcable_gpio_num2);
+        //PK_XLOG_INFO(" gpio_value=%d,last_value=%d\n",level,last_eint_level);
+        if(level!=last_eint_level2){
+                printk(KERN_ERR "usbcable: irq2 handler report key [%d]\n", level);
+                input_report_key(cable_input_dev, KEY_VIDEOPHONE, level);
+                input_sync(cable_input_dev);
+                last_eint_level2 = level;
+        }
+        //FUNCTION_EXIT;
+        return IRQ_HANDLED;
+}
+
+static irqreturn_t usbcable_irq_handler3(int irq, void *dev)
+{
+        int level = 0;
+        //FUNCTION_ENTER;
+
+        level = gpio_get_value(usbcable_gpio_num3);
+        //PK_XLOG_INFO(" gpio_value=%d,last_value=%d\n",level,last_eint_level);
+        if(level!=last_eint_level3){
+                printk(KERN_ERR "usbcable: irq3 handler report key [%d]\n", level);
+                input_report_key(cable_input_dev, KEY_GAMES, level);
+                input_sync(cable_input_dev);
+                last_eint_level3 = level;
         }
         //FUNCTION_EXIT;
         return IRQ_HANDLED;
@@ -182,6 +234,52 @@ static int usbcable_probe(struct platform_device *pdev){
         gpio_set_debounce(usbcable_gpio_num1, usbcable_gpio_deb);
         PK_XLOG_INFO("usbcable_gpio_num1<%d>debounce<%d>,\n", usbcable_gpio_num1,usbcable_gpio_deb);
 
+	//get usbcable-gpio num and set gpio dir/debounce...
+        usbcable_gpio_num2 = of_get_named_gpio(node, "usbcable-gpio2", 0);
+        //ret = of_property_read_u32(node, "debounce", &usbcable_gpio_deb);
+        //if (ret < 0) {
+        //        PK_XLOG_ERR("gpiodebounce not found,ret:%d\n", ret);
+        //        return ret;
+        //}
+
+    ret = gpio_request_one(usbcable_gpio_num2, GPIOF_IN,"usbcable-gpio2" "-int");
+    if (ret) {
+        PK_XLOG_ERR("Request INT gpio2 (%d) failed %d", usbcable_gpio_num2, ret);
+        return ret;
+    }
+
+    ret = gpio_direction_input(usbcable_gpio_num2);
+    if (ret < 0) {
+        PK_XLOG_ERR("gpio2-%d input set fail!!!\n", usbcable_gpio_num2);
+        return ret;
+    }
+
+        gpio_set_debounce(usbcable_gpio_num2, usbcable_gpio_deb);
+        PK_XLOG_INFO("usbcable_gpio_num2<%d>debounce<%d>,\n", usbcable_gpio_num2,usbcable_gpio_deb);
+
+	//get usbcable-gpio num and set gpio dir/debounce...
+        usbcable_gpio_num3 = of_get_named_gpio(node, "usbcable-gpio3", 0);
+        //ret = of_property_read_u32(node, "debounce", &usbcable_gpio_deb);
+        //if (ret < 0) {
+        //        PK_XLOG_ERR("gpiodebounce not found,ret:%d\n", ret);
+        //        return ret;
+        //}
+
+    ret = gpio_request_one(usbcable_gpio_num3, GPIOF_IN,"usbcable-gpio3" "-int");
+    if (ret) {
+        PK_XLOG_ERR("Request INT gpio3 (%d) failed %d", usbcable_gpio_num3, ret);
+        return ret;
+    }
+
+    ret = gpio_direction_input(usbcable_gpio_num3);
+    if (ret < 0) {
+        PK_XLOG_ERR("gpio3-%d input set fail!!!\n", usbcable_gpio_num3);
+        return ret;
+    }
+
+        gpio_set_debounce(usbcable_gpio_num3, usbcable_gpio_deb);
+        PK_XLOG_INFO("usbcable_gpio_num3<%d>debounce<%d>,\n", usbcable_gpio_num3,usbcable_gpio_deb);
+
 	//alloc input device and register it.
 	cable_input_dev = input_allocate_device();
 	if(!cable_input_dev)
@@ -192,6 +290,8 @@ static int usbcable_probe(struct platform_device *pdev){
 	__set_bit(EV_KEY, cable_input_dev->evbit);
 	__set_bit(KEY_TWEN, cable_input_dev->keybit);
 	__set_bit(KEY_TEEN, cable_input_dev->keybit);
+	__set_bit(KEY_VIDEOPHONE, cable_input_dev->keybit);
+        __set_bit(KEY_GAMES, cable_input_dev->keybit);
 
 	ret = input_register_device(cable_input_dev);
 	if (ret){
@@ -249,6 +349,56 @@ static int usbcable_probe(struct platform_device *pdev){
         }
 
         PK_XLOG_INFO("usbcable_gpio1_val<%d>\n",ret);
+
+	//usbcable_eint_num = irq_of_parse_and_map(node, 0);
+        usbcable_eint_num2 = gpio_to_irq(usbcable_gpio_num2);
+    if (usbcable_eint_num2 < 0) {
+        PK_XLOG_ERR("Parse irq2 failed %d", ret);
+        return usbcable_eint_num2;
+    }
+        PK_XLOG_INFO("usbcable_eint_num2<%d>\n",usbcable_eint_num2);
+        ret = request_irq(usbcable_eint_num2, usbcable_irq_handler2,IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING | IRQF_ONESHOT, "USB_CABLE2", NULL);
+        if (ret) {
+                PK_XLOG_ERR("request_irq2 fail, ret:%d.\n",ret);
+                return ret;
+        }
+        //enable_irq_wake(usbcable_eint_num);
+        PK_XLOG_INFO("usbcable eint2 request success!\n");
+
+        ret = gpio_get_value(usbcable_gpio_num2);
+        if(ret!=last_eint_level2){
+                printk(KERN_ERR "usbcable: probe report key2 [%d]\n", ret);
+                input_report_key(cable_input_dev, KEY_VIDEOPHONE, ret);
+                input_sync(cable_input_dev);
+                last_eint_level2 = ret;
+        }
+
+        PK_XLOG_INFO("usbcable_gpio2_val<%d>\n",ret);
+
+	//usbcable_eint_num = irq_of_parse_and_map(node, 0);
+        usbcable_eint_num3 = gpio_to_irq(usbcable_gpio_num3);
+    if (usbcable_eint_num3 < 0) {
+        PK_XLOG_ERR("Parse irq3 failed %d", ret);
+        return usbcable_eint_num3;
+    }
+        PK_XLOG_INFO("usbcable_eint_num3<%d>\n",usbcable_eint_num3);
+        ret = request_irq(usbcable_eint_num3, usbcable_irq_handler3,IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING | IRQF_ONESHOT, "USB_CABLE3", NULL);
+        if (ret) {
+                PK_XLOG_ERR("request_irq3 fail, ret:%d.\n",ret);
+                return ret;
+        }
+        //enable_irq_wake(usbcable_eint_num);
+        PK_XLOG_INFO("usbcable eint3 request success!\n");
+
+        ret = gpio_get_value(usbcable_gpio_num3);
+        if(ret!=last_eint_level3){
+                printk(KERN_ERR "usbcable: probe report key3 [%d]\n", ret);
+                input_report_key(cable_input_dev, KEY_GAMES, ret);
+                input_sync(cable_input_dev);
+                last_eint_level3 = ret;
+        }
+
+        PK_XLOG_INFO("usbcable_gpio3_val<%d>\n",ret);
 	FUNCTION_EXIT;
 	return 0;
 }
