@@ -1,0 +1,8 @@
+menu "sx9375 driver"
+
+config SX9375
+	tristate "sx9375 driver"
+	help
+	  sx9375 driver
+
+endmenu

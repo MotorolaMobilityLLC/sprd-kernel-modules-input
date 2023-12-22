@@ -1,0 +1,8 @@
+menu "aw96308 driver"
+
+config AW96308
+	tristate "aw96308 driver"
+	help
+	  aw96308 driver
+
+endmenu
