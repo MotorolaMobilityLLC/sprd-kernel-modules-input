@@ -50,7 +50,7 @@
 #include <linux/clk.h>
 
 
-//#define USE_REGULATOR 1
+#define USE_REGULATOR 1
 /*
 #ifndef CONFIG_FB
 #define CONFIG_FB
@@ -507,8 +507,8 @@ static ssize_t sensor_init(struct fpc_data *fpc)
         goto init_exit;
     }
 #else
-    //gpio_direction_output(fpc->power_ctl_gpio, 1);
-    //fpsensor_log(INFO_LOG, "fpc %s the value after set fpc->power_ctl_gpio 1 is %d\n", __func__, gpio_get_value(fpc->power_ctl_gpio));
+    gpio_direction_output(fpc->power_ctl_gpio, 1);
+    fpsensor_log(INFO_LOG, "fpc %s the value after set fpc->power_ctl_gpio 1 is %d\n", __func__, gpio_get_value(fpc->power_ctl_gpio));
 #endif
 
 #endif
@@ -552,7 +552,7 @@ static ssize_t sensor_release(struct fpc_data *fpc)
         return ret;
     }
 #else
-    //if (gpio_is_valid(fpc->power_ctl_gpio)) {
+    if (gpio_is_valid(fpc->power_ctl_gpio)) {
 
 #ifdef PIN_CONTROL
         ret = select_pin_ctl(fpc, "fpc1020_power_deactive");
@@ -560,14 +560,14 @@ static ssize_t sensor_release(struct fpc_data *fpc)
             fpsensor_log(ERROR_LOG, "fpc %s pin ctrl power deactive failed.\n", __func__);
         }
 #else
-        //gpio_direction_output(fpc->power_ctl_gpio, 0);
+        gpio_direction_output(fpc->power_ctl_gpio, 0);
 #endif
 
-           //fpsensor_log(DEBUG_LOG, "cutoff power value fpc->power_ctl_gpio = %d\n", gpio_get_value(fpc->power_ctl_gpio));
-        //devm_gpio_free(dev, fpc->power_ctl_gpio);
-        //fpsensor_log(DEBUG_LOG, "fpc %s remove power_ctl_gpio success.\n", __func__);
+        fpsensor_log(DEBUG_LOG, "cutoff power value fpc->power_ctl_gpio = %d\n", gpio_get_value(fpc->power_ctl_gpio));
+        devm_gpio_free(dev, fpc->power_ctl_gpio);
+        fpsensor_log(DEBUG_LOG, "fpc %s remove power_ctl_gpio success.\n", __func__);
 
-    //}
+    }
 #endif
     fpsensor_log(INFO_LOG, "fpc %s exit\n", __func__);
     return ret;
@@ -716,7 +716,6 @@ static int fpc_dts_pin_init( struct fpc_data * fpc)
     if (node) {
 
 #ifndef USE_REGULATOR
-#if 0
          fpc->power_ctl_gpio = of_get_named_gpio(node, "fpc,power_ctl_gpio", 0);
          if (fpc->power_ctl_gpio < 0) {
              fpsensor_log(ERROR_LOG,"%s failed to get fpc,power_ctl_gpio!\n", __func__);
@@ -733,7 +732,6 @@ static int fpc_dts_pin_init( struct fpc_data * fpc)
              }
          }
          fpsensor_log(INFO_LOG,"%s the value of request fpc->power_ctl_gpio is %d\n", __func__, fpc->power_ctl_gpio);
-#endif
 #endif
         fpc->rst_gpio = of_get_named_gpio(node, "fpc,rst_gpio", 0);
         if (fpc->rst_gpio < 0) {
