@@ -72,6 +72,7 @@ static const char * const pctl_names[] = {
 #define FPC_RESET_HIGH2_US    5000
 #define FPC_TTW_HOLD_TIME     1000
 #define FPC_POWEROFF_SLEEP_US 1000
+#define MAX_RESET_NUM 2
 
 #define GET_STR_BYSTATUS(status) (status==0? "Success":"Failure")
 #define ERROR_LOG       (0)
@@ -142,7 +143,7 @@ static DEFINE_MUTEX(fpc_set_gpio_mutex);
 static int fpc_dts_pin_init( struct fpc_data * fpc);
 static int fpc_dts_irq_init(struct fpc_data *fpc);
 static irqreturn_t fpc_irq_handler(int irq, void *handle);
-
+static int reset_num = 0;
 
 #ifdef CONFIG_FB
 static int fb_notifier_callback(struct notifier_block *self, unsigned long event,
@@ -296,21 +297,6 @@ static int hw_reset(struct  fpc_data *fpc)
     int rc = 0;
     func_entry();
 
-#ifdef USE_REGULATOR
-        rc = vreg_setup(fpc, "vdd_io", false);
-        if (rc != 0 ){
-            fpsensor_log(ERROR_LOG, "fpc %s vreg_setup:false failed!\n", __func__);
-            return rc;
-        }
-        usleep_range(FPC_POWEROFF_SLEEP_US, FPC_POWEROFF_SLEEP_US + 100);
-        rc = vreg_setup(fpc, "vdd_io", true);
-        if (rc !=0 ){
-            fpsensor_log(ERROR_LOG, "fpc %s vreg_setup:true failed!\n", __func__);
-            return rc;
-        }
-        usleep_range(FPC_POWEROFF_SLEEP_US, FPC_POWEROFF_SLEEP_US + 100);
-#endif
-
 #ifdef PIN_CONTROL
     rc = select_pin_ctl(fpc, "fpc1020_reset_active");
     if(rc){
@@ -346,16 +332,70 @@ static int hw_reset(struct  fpc_data *fpc)
     func_exit();
     return rc;
 }
-
+static int hw_power_reset(struct fpc_data *fpc, int enable)
+{
+    int rc = 0;
+    func_entry();
+#ifdef USE_REGULATOR
+    rc = vreg_setup(fpc, "vdd_io", false);
+    if (rc != 0 ){
+        fpsensor_log(ERROR_LOG, "fpc %s vreg_setup:false failed!\n", __func__);
+        return rc;
+    }
+    usleep_range(FPC_POWEROFF_SLEEP_US, FPC_POWEROFF_SLEEP_US + 100);
+    if(enable){
+        rc = vreg_setup(fpc, "vdd_io", true);
+        if (rc !=0 ){
+            fpsensor_log(ERROR_LOG, "fpc %s vreg_setup:true failed!\n", __func__);
+            return rc;
+        }
+        usleep_range(FPC_POWEROFF_SLEEP_US, FPC_POWEROFF_SLEEP_US + 100);
+    }
+#else
+#ifdef PIN_CONTROL
+    rc = select_pin_ctl(fpc, "fpc1020_power_deactive");
+    if(rc != 0 ){
+        fpsensor_log(ERROR_LOG, "fpc %s pin ctrl power de-active failed.\n", __func__);
+        return rc;
+    }
+    usleep_range(FPC_POWEROFF_SLEEP_US, FPC_POWEROFF_SLEEP_US + 100);
+    if(enable){
+        rc = select_pin_ctl(fpc, "fpc1020_power_active");
+        if(rc != 0 ){
+            fpsensor_log(ERROR_LOG, "fpc %s pin ctrl power active failed.\n", __func__);
+            return rc;
+        }
+        usleep_range(FPC_POWEROFF_SLEEP_US, FPC_POWEROFF_SLEEP_US + 100);
+    }
+#else
+    gpio_direction_output(fpc->power_ctl_gpio, 0);
+    usleep_range(FPC_POWEROFF_SLEEP_US, FPC_POWEROFF_SLEEP_US + 100);
+    if(enable){
+        gpio_direction_output(fpc->power_ctl_gpio, 1);
+        usleep_range(FPC_POWEROFF_SLEEP_US, FPC_POWEROFF_SLEEP_US + 100);
+    }
+    fpsensor_log(INFO_LOG, "fpc %s the value after set fpc->power_ctl_gpio 1 is %d\n", __func__, gpio_get_value(fpc->power_ctl_gpio));
+#endif
+#endif
+    rc = hw_reset(fpc);
+    return rc;
+}
 static ssize_t hw_reset_set(struct device *dev,
         struct device_attribute *attr, const char *buf, size_t count)
 {
+    int rc;
     struct  fpc_data *fpc = dev_get_drvdata(dev);
     fpsensor_log(DEBUG_LOG, "fpc %s cmd=%s\n", __func__, buf);
 
     if (!strncmp(buf, "reset", strlen("reset"))) {
-        int rc;
-        rc = hw_reset(fpc);
+        if(reset_num > MAX_RESET_NUM){
+            fpsensor_log(INFO_LOG, "fpc %s hardware abnormal, shut down.\n", __func__);
+            rc = hw_power_reset(fpc,0);
+            reset_num = 0;
+            return rc ? rc : count;
+        }
+        reset_num++;
+        rc = hw_power_reset(fpc,1);
         return rc ? rc : count;
     } else if(!strncmp(buf, "wakelock", strlen("wakelock"))){
         fpsensor_log(DEBUG_LOG, "fpc wakeup 30s %s cmd=%s\n", __func__, buf);
@@ -363,7 +403,6 @@ static ssize_t hw_reset_set(struct device *dev,
         return count;
     } else if(!strncmp(buf, "wakeunlock", strlen("wakeunlock"))){
         fpsensor_log(DEBUG_LOG, "fpc wakeup unlock %s cmd=%s\n", __func__, buf);
-        //__pm_relax(&fpc->ttw_wl);
         return count;
     }
     else
@@ -657,7 +696,6 @@ static irqreturn_t fpc_irq_handler(int irq, void *handle)
 
     /* Make sure 'wakeup_enabled' is updated before using it
      ** since this is interrupt context (other thread...) */
-    func_entry();
     smp_rmb();
     if (fpc->wakeup_enabled) {
         __pm_wakeup_event(&fpc->ttw_wl, FPC_TTW_HOLD_TIME);
@@ -793,6 +831,7 @@ static int fpc_probe(struct platform_device *pdev)
     struct device *dev = &pdev->dev;
     struct fpc_data *fpc;
     int rc = 0;
+    reset_num = 0;
 #ifdef PIN_CONTROL
     int i;
 #endif
