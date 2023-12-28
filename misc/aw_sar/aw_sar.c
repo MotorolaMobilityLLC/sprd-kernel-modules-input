@@ -34,7 +34,10 @@ static struct mutex aw_sar_lock;
 
 static int32_t aw_sar_get_chip_info(struct aw_sar *p_sar);
 static void aw_sar_sensor_free(struct aw_sar *p_sar);
-
+#ifdef HEADSET_CALI
+extern int headset_register_notifier(struct notifier_block *nb);
+extern int headset_unregister_notifier(struct notifier_block *nb);
+#endif
 //Because disable/enable_irq api Therefore, IRQ is embedded
 void aw_sar_disable_irq(struct aw_sar *p_sar)
 {
@@ -271,6 +274,10 @@ int32_t aw_sar_parse_dts_comm(struct device *dev, struct device_node *np, struct
 
 	p_dts_info->use_plug_cail_flag = of_property_read_bool(np, "aw_sar,use_plug_cail");
 	AWLOGI(dev, "aw_sar,use_plug_cail_flag = <%d>", p_dts_info->use_plug_cail_flag);
+#ifdef HEADSET_CALI
+	p_dts_info->use_headset_plug_cail_flag = of_property_read_bool(np, "aw_sar,use_headset_plug_cail");
+        AWLOGI(dev, "aw_sar,use_headset_plug_cail_flag = <%d>", p_dts_info->use_headset_plug_cail_flag);
+#endif
 	return AW_OK;
 }
 
@@ -1671,6 +1678,46 @@ free_ps_notifier:
 }
 // AW_SAR_USB_PLUG_CAIL end
 
+#ifdef HEADSET_CALI
+static void aw_sar_hs_notify_callback_work(struct work_struct *work)
+{
+	struct aw_sar *p_sar = container_of(work, struct aw_sar, hs_notify_work);
+
+	AWLOGD(p_sar->dev, "aw_sar_hs_notify_callback_work enter");
+
+	aw_sar_aot(p_sar);
+}
+
+static int aw_sar_hs_notify_callback(struct notifier_block *self,
+		unsigned long event, void *p)
+{
+	struct aw_sar *p_sar = container_of(self, struct aw_sar, hs_notif);
+
+	if (p_sar->hs_is_plug == event) {
+	        //AWLOGE(p_sar->dev, "hs plug state not change");
+		return 0;
+	}
+	p_sar->hs_is_plug = event;
+	schedule_work(&p_sar->hs_notify_work);
+
+	return 0;
+}
+
+static int aw_sar_hs_notify_init(struct aw_sar *p_sar)
+{
+	int ret = 0;
+
+	INIT_WORK(&p_sar->hs_notify_work, aw_sar_hs_notify_callback_work);
+	p_sar->hs_notif.notifier_call = (notifier_fn_t)aw_sar_hs_notify_callback;
+	ret = headset_register_notifier(&p_sar->hs_notif);
+	if (ret) {
+		AWLOGE(p_sar->dev,"Unable to register hs_notifier: %d", ret);
+		return -AW_ERR;
+	}
+	p_sar->hs_is_plug = -1;
+	return AW_OK;
+}
+#endif
 
 static int32_t aw_sar_platform_rsc_init(struct aw_sar *p_sar)
 {
@@ -1697,7 +1744,16 @@ static int32_t aw_sar_platform_rsc_init(struct aw_sar *p_sar)
 			goto free_usb_plug_cail;
 		}
 	}
-
+#ifdef HEADSET_CALI
+	//Configure whether to use HEADSET plug-in calibration in DTS according to customer requirements
+        if (p_sar->dts_info.use_headset_plug_cail_flag == true) {
+                ret = aw_sar_hs_notify_init(p_sar);
+                if (ret < 0) {
+                        AWLOGE(p_sar->dev, "error creating headset supply notify");
+                        goto free_headset_plug_cail;
+                }
+        }
+#endif
 	//The interrupt pin is set to internal pull-up and configured by DTS
 	if (p_sar->dts_info.use_inter_pull_up == true) {
 		ret = aw_sar_pinctrl_init(p_sar);
@@ -1744,6 +1800,11 @@ free_sysfs_nodes:
 err_pinctrl:
 	if (p_sar->dts_info.use_inter_pull_up == true)
 		aw_sar_pinctrl_deinit(p_sar);
+#ifdef HEADSET_CALI
+free_headset_plug_cail:
+        if (p_sar->dts_info.use_headset_plug_cail_flag == true)
+                headset_unregister_notifier(&p_sar->hs_notif);
+#endif
 free_usb_plug_cail:
 	if (p_sar->dts_info.use_plug_cail_flag == true)
 		power_supply_unreg_notifier(&p_sar->ps_notif);
@@ -1974,10 +2035,14 @@ static int32_t aw_sar_i2c_remove(struct i2c_client *i2c)
 
 	if (p_sar->dts_info.use_regulator_flag == true)
 		aw_sar_power_deinit(p_sar);
-
-	if (p_sar->dts_info.use_plug_cail_flag == true) {
-		power_supply_unreg_notifier(&p_sar->ps_notif);
+#ifdef HEADSET_CALI
+	if (p_sar->dts_info.use_headset_plug_cail_flag == true) {
+		headset_unregister_notifier(&p_sar->hs_notif);
 	}
+#endif
+	if (p_sar->dts_info.use_plug_cail_flag == true) {
+                power_supply_unreg_notifier(&p_sar->ps_notif);
+        }
 
 	aw_sar_sensor_free(p_sar);
 
