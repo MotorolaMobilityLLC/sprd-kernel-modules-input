@@ -3,7 +3,7 @@
 #define _SAR_TYPE_H_
 
 #include "aw_sar_comm_interface.h"
-
+//#define HEADSET_CALI
 typedef int32_t (*aw_sar_chip_other_operation_t)(void *data);
 typedef void (*aw_sar_chip_other_opera_free_t)(void *data);
 
@@ -126,6 +126,9 @@ struct aw_sar_dts_info {
 	bool use_pm;
 	bool update_fw_flag;
 	bool use_plug_cail_flag;
+#ifdef HEADSET_CALI
+	bool use_headset_plug_cail_flag;
+#endif
 };
 
 struct aw_sar_irq_init_comm_t {
@@ -354,7 +357,11 @@ struct aw_sar {
 	struct work_struct ps_notify_work;
 	struct notifier_block ps_notif;
 	bool ps_is_present;
-
+#ifdef HEADSET_CALI
+	struct work_struct hs_notify_work;
+        struct notifier_block hs_notif;
+        int hs_is_plug;
+#endif
 	//Parameters related to platform logic
 	struct aw_sar_dts_info dts_info;
 	struct aw_sar_load_bin_comm_t load_bin;
