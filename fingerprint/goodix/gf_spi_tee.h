@@ -161,11 +161,28 @@ typedef struct {
 
 #define  GF_IOC_MAXNR    18  /* THIS MACRO IS NOT USED NOW... */
 
+#define USE_REGULATOR 1   /*use ldo power supply*/
+
+#ifdef USE_REGULATOR
+struct vreg_config {
+	char *name;
+	unsigned long vmin;
+	unsigned long vmax;
+	int ua_load;
+};
+
+static const struct vreg_config vreg_conf = {"vdd_io", 3300000UL, 3300000UL, 6000};
+#endif
+
 struct gf_device {
 	dev_t devno;
 	struct cdev cdev;
 	struct device *device;
 	struct platform_device *pldev;
+#ifdef USE_REGULATOR
+	struct regulator *vreg;
+	struct device *pdev;
+#endif
 	struct class *class;
 	struct spi_device *spi;
 	int device_count;

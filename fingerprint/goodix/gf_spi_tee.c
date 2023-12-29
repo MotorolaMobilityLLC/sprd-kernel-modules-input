@@ -217,7 +217,64 @@ static int gf_get_sensor_dts_info(void)
 	return 0;
 }
 
-#define GF_POWER_GPIO	   1
+#ifdef USE_REGULATOR
+static int gf_set_ldo_enable(struct gf_device *gf_dev, u8 onoff)
+{
+	int rc;
+	struct regulator *vreg;
+	struct device *pdev = gf_dev->pdev;
+	char ldo_name[24] = "vdd_io";
+
+	vreg = gf_dev->vreg;
+	if (onoff) {
+		if(!vreg) {
+			vreg = devm_regulator_get(pdev, "vdd_io");
+			if (IS_ERR(vreg)) {
+				pr_err("Unable to get %s\n", ldo_name);
+				return PTR_ERR(vreg);
+			}
+		}
+
+		if (regulator_count_voltages(vreg) > 0) {
+			rc = regulator_set_voltage(vreg, vreg_conf.vmin, vreg_conf.vmax);
+			if (rc) {
+				pr_err( "Unable to set voltage on %s, %d\n", ldo_name, rc);
+				return rc;
+			}
+		}
+
+		rc = regulator_set_load(vreg, vreg_conf.ua_load);
+		if (rc < 0) {
+			pr_err("Unable to set current on %s, %d\n", ldo_name, rc);
+			return rc;
+		}
+
+		rc = regulator_enable(vreg);
+		if (rc) {
+			pr_err("error enabling %s: %d\n", ldo_name, rc);
+			return rc;
+		}
+		gf_dev->vreg = vreg;
+	} else {
+		if (vreg) {
+			if (regulator_is_enabled(vreg)) {
+				rc = regulator_disable(vreg);
+				if (rc) {
+					pr_err("disabled %s fail\n", ldo_name);
+					return rc;
+				}
+			}
+			pr_err("wtd post 5\n");
+			gf_dev->vreg = NULL;
+		}
+		rc = 0;
+	}
+	return rc;
+}
+#endif
+
+//#define GF_POWER_GPIO	   1
+#define GF_POWER_EXT_LDO	   1
 static void gf_hw_power_enable(struct gf_device *gf_dev, u8 onoff)
 {
 	/* TODO: LDO configure */
@@ -228,40 +285,44 @@ static void gf_hw_power_enable(struct gf_device *gf_dev, u8 onoff)
 		enable = 0;
 
 #ifdef GF_POWER_GPIO
-		//gpiod_direction_output(gf_dev->avdd_gpio_desc, 1);
-		//pr_info("set pwr_gpio on");
+		gpiod_direction_output(gf_dev->avdd_gpio_desc, 1);
+		pr_info("set pwr_gpio on");
 #elif GF_POWER_EXT_LDO
-		rc = wl2868c_set_ldo_enable(LDO4, 3000);
-		pr_info("---- power_on external ldo ---- rc = %d\n",rc);
+		//rc = wl2868c_set_ldo_enable(LDO4, 3000);
+		//pr_info("---- power_on external ldo ---- rc = %d\n",rc);
+#ifdef USE_REGULATOR
+		rc = gf_set_ldo_enable(gf_dev, 1);
+		if (rc)
+			pr_err("set ldo power on failed rc = %d\n", rc);
+		else
+			pr_info("set ldo power on success\n");
+#endif
 #else
 		rc = -1;
 		pr_info("---- power on mode not set !!! ----\n");
 #endif
-		if (rc) {
-			pr_err("---- power on failed rc = %d ----\n", rc);
-		} else {
-			pr_info("---- power on ok  ----\n");
-		}
 		gf_hw_reset(gf_dev, 15);
 	} else if (!onoff && !enable) {
 		enable = 1;
 
 #ifdef GF_POWER_GPIO
-		//gpiod_direction_output(gf_dev->avdd_gpio_desc, 0);
-		//gpiod_set_value(gf_dev->rst_gpio_desc, 0);
-		//pr_info("set pwr_gpio off");
+		gpiod_direction_output(gf_dev->avdd_gpio_desc, 0);
+		gpiod_set_value(gf_dev->rst_gpio_desc, 0);
+		pr_info("set pwr_gpio off");
 #elif GF_POWER_EXT_LDO
-		rc = wl2868c_set_ldo_disable(LDO4);
-		pr_info("---- power_off external ldo ---- rc = %d\n",rc);
+		//rc = wl2868c_set_ldo_disable(LDO4);
+		//pr_info("---- power_off external ldo ---- rc = %d\n",rc);
+#ifdef USE_REGULATOR
+		rc = gf_set_ldo_enable(gf_dev, 0);
+		if (rc)
+			pr_err("set ldo power off failed rc = %d\n", rc);
+		else
+			pr_info("set ldo power off success\n");
+#endif
 #else
 		rc = -1;
 		pr_info("---- power on mode not set !!! ----\n");
 #endif
-		if (rc) {
-			pr_err("---- power off failed rc = %d ----\n", rc);
-		} else {
-			pr_info("---- power off ok  ----\n");
-		}
 	}
 }
 
@@ -992,7 +1053,9 @@ static int gf_platform_probe(struct platform_device *pldev)
 	dev_set_drvdata(dev, gf_dev);
 	gf_dev->pldev = pldev;
 	gf_dev->device = dev;
-
+#ifdef USE_REGULATOR
+	gf_dev->pdev = dev;
+#endif
 	/* get gpio info from dts or defination */
 	//gf_get_gpio_dts_info(gf_dev);
 	gf_get_sensor_dts_info();
