@@ -1204,6 +1204,54 @@ static ssize_t offset_show(struct device *dev, struct device_attribute *attr, ch
 	return len;
 }
 
+static ssize_t batch_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
+{
+        struct aw_sar *p_sar = dev_get_drvdata(dev);
+	int flag = 0;
+	int handle;
+        int report_rate;
+        s64 batch_timeout;
+
+	AWLOGE(p_sar->dev, "buf=%s\n", buf);
+	if (sscanf(buf, "%d %d %d %lld\n",
+                   &handle, &flag,
+                   &report_rate,
+                   &batch_timeout) != 4)
+                return -EINVAL;
+        AWLOGE(p_sar->dev,
+                 "handle = %d, rate = %d, batch_latency = %lld\n",
+                 handle,
+                 report_rate, batch_timeout);
+
+        return count;
+}
+
+static ssize_t enable_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
+{
+        struct aw_sar *p_sar = dev_get_drvdata(dev);
+        int handle, enabled;
+	static int last_enable = -1;
+
+        AWLOGE(p_sar->dev, "buf=%s\n", buf);
+        if (sscanf(buf, "%d %d\n", &handle, &enabled) != 2)
+                return -EINVAL;
+        AWLOGE(p_sar->dev,
+                 "handle = %d, enabled = %d\n", handle, enabled);
+
+	if(last_enable != enabled)
+	{
+	    last_enable = enabled;
+	    if(enabled == 0)
+	    {
+	    }
+	    else
+	    {
+	    }
+	}
+
+        return count;
+}
+
 static DEVICE_ATTR_RW(awrw);
 static DEVICE_ATTR_RW(reg);
 static DEVICE_ATTR_WO(soft_rst);
@@ -1213,6 +1261,8 @@ static DEVICE_ATTR_RO(diff);
 static DEVICE_ATTR_RW(mode_operation);
 static DEVICE_ATTR_RO(chip_info);
 static DEVICE_ATTR_RO(offset);
+static DEVICE_ATTR_WO(batch);
+static DEVICE_ATTR_WO(enable);
 
 static struct attribute *aw_sar_attributes[] = {
 	&dev_attr_awrw.attr,
@@ -1224,6 +1274,8 @@ static struct attribute *aw_sar_attributes[] = {
 	&dev_attr_mode_operation.attr,
 	&dev_attr_chip_info.attr,
 	&dev_attr_offset.attr,
+	&dev_attr_batch.attr,
+	&dev_attr_enable.attr,
 	NULL
 };
 
