@@ -1230,22 +1230,31 @@ static ssize_t enable_store(struct device *dev, struct device_attribute *attr, c
 {
         struct aw_sar *p_sar = dev_get_drvdata(dev);
         int handle, enabled;
-	static int last_enable = -1;
+	static int enable_count = 0;
 
-        AWLOGE(p_sar->dev, "buf=%s\n", buf);
+        AWLOGE(p_sar->dev, "buf=%s", buf);
         if (sscanf(buf, "%d %d\n", &handle, &enabled) != 2)
                 return -EINVAL;
         AWLOGE(p_sar->dev,
-                 "handle = %d, enabled = %d\n", handle, enabled);
+                 "handle = %d, enabled = %d", handle, enabled);
 
-	if(last_enable != enabled)
+	if(enabled == 1)
 	{
-	    last_enable = enabled;
-	    if(enabled == 0)
+	    enable_count++;
+	    if(enable_count > 0)
 	    {
+                aw_sar_i2c_write_bits(p_sar->i2c, 0x0004, ~0xfff, 0xfff);//REG_SCANCTRL1
+                aw_sar_mode_set(p_sar, 0x01);//AW963XX_ACTIVE_MODE
 	    }
-	    else
+	}
+	else//enabled == 0
+	{
+	    enable_count--;
+	    if(enable_count < 0)
+                enable_count = 0;
+	    if(enable_count == 0)
 	    {
+                aw_sar_mode_set(p_sar, 0x02);//AW963XX_SLEEP_MODE
 	    }
 	}
 
