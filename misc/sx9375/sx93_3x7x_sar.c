@@ -76,13 +76,13 @@ typedef enum{
     CMD_ACTIVATE    = 0xF,
     CMD_COMPENSATE  = 0xE,
     CMD_PAUSE       = 0xD,
-    CMD_RESUME      = 0xC,    
-        
+    CMD_RESUME      = 0xC,
+
 }COMMANDS;
 
 typedef struct reg_addr_val_s
 {
-    //declare it as u32 is for parsing the dts, though regiter addr is 16 bits, 
+    //declare it as u32 is for parsing the dts, though regiter addr is 16 bits,
     u32 addr;
     u32 val;
 }reg_addr_val_t, *reg_addr_val_p;
@@ -113,14 +113,14 @@ typedef struct variables_s
 typedef struct debug_flag_s
 {
     //log raw data (useful, diff, etc.) when proximity status is changed
-    char log_raw_data; 
+    char log_raw_data;
     char log_dbg_data;
     char log_hex_data;
 }debug_flag_t;
 
 typedef struct self_s
 {
-    struct i2c_client *client;    
+    struct i2c_client *client;
     int irq_id; /* irq number used */
     int gpio;
     int num_regs;   //Number of registers need to be configured. Parsed from dts
@@ -142,19 +142,19 @@ typedef struct self_s
     debug_flag_t dbg_flag;
 
     spinlock_t lock; /* Spin Lock used for nirq worker function */
-#ifndef USE_THREAD_IRQ    
+#ifndef USE_THREAD_IRQ
     struct delayed_work worker; /* work struct for worker function */
 #endif
 
-#ifdef ENABLE_STAY_AWAKE    
+#ifdef ENABLE_STAY_AWAKE
     struct wakeup_source *wake_lock;
-#endif    
+#endif
 
     struct mutex phen_lock;
 
     //Function that will be called back when corresponding IRQ is raised
     //Refer to register 0x4000
-    void (*irq_handler[NUM_IRQ_BITS])(struct self_s* self);    
+    void (*irq_handler[NUM_IRQ_BITS])(struct self_s* self);
 }self_t, *Self;
 
 #define SMTC_LOG_DBG(fmt, args...)   pr_debug("[DBG]"  SMTC_CHIP_NAME ".%s(%d):" fmt "\n", __func__, __LINE__, ##args)
@@ -312,7 +312,7 @@ static int smtc_i2c_write(Self self, u16 reg_addr, u32 reg_val)
              break;
         }
     }
-    
+
     return ret;
 }
 
@@ -326,7 +326,7 @@ static int smtc_i2c_read(Self self, u16 reg_addr, u32 *reg_val)
     struct i2c_msg msg[2];
     u8 w_buf[2];
     u8 buf[4];
-    
+
 
     if (self && self->client)
     {
@@ -343,7 +343,7 @@ static int smtc_i2c_read(Self self, u16 reg_addr, u32 *reg_val)
         msg[1].flags = I2C_M_RD_SMTC;
         msg[1].len = 4;
         msg[1].buf = (u8 *)buf;
-            
+
         while(true)
         {
             ret = i2c_transfer(i2c->adapter, msg, 2);
@@ -351,7 +351,7 @@ static int smtc_i2c_read(Self self, u16 reg_addr, u32 *reg_val)
                 *reg_val = (u32)buf[0]<<24 | (u32)buf[1]<<16 | (u32)buf[2]<<8 | (u32)buf[3];
                 break;
             }
-                
+
             if (num_retried++ < NUM_RETRY_ON_I2C_ERR)
             {
                 SMTC_LOG_ERR("i2c read reg 0x%x error %d. Goint to retry", reg_addr, ret);
@@ -359,7 +359,7 @@ static int smtc_i2c_read(Self self, u16 reg_addr, u32 *reg_val)
                     msleep(SLEEP_BETWEEN_RETRY);
             }
             else{
-                SMTC_LOG_ERR("i2c read reg 0x%x error %d after retried %d times", 
+                SMTC_LOG_ERR("i2c read reg 0x%x error %d after retried %d times",
                     reg_addr, ret, NUM_RETRY_ON_I2C_ERR);
                  break;
             }
@@ -388,7 +388,7 @@ static int smtc_send_cmd(Self self, COMMANDS cmd)
             SMTC_LOG_DBG("Chip is free and capable to process new command.");
             break;
         }
-        
+
         if (--retry_times == 0){
             SMTC_LOG_WRN("Chip keeps busy after 10 times retry.");
             break;
@@ -403,14 +403,14 @@ static int smtc_send_cmd(Self self, COMMANDS cmd)
         return -EIO;
     }
 
-    return 0;    
+    return 0;
 }
 
 static int smtc_enable_phase(Self self, u32 phases)
 {
     int ret;
     SMTC_LOG_DBG("phases=0x%X", phases);
-    
+
     mutex_lock(&self->phen_lock);
     self->variables.enabled_phases = phases;
     ret = smtc_i2c_write(self, REG_PHEN, phases);
@@ -423,16 +423,16 @@ static int smtc_read_and_clear_irq(Self self, u32 *irq_src)
 {
     int ret = 0;
     u32 reg_val;
-    
+
     ret = smtc_i2c_read(self, REG_IRQ_SRC, &reg_val);
     if (ret > 0)
     {
         reg_val &= 0xFF;
         SMTC_LOG_DBG("irq_src= 0x%X", reg_val);
-        
+
         if (irq_src){
             *irq_src = reg_val;
-        }        
+        }
         ret = 0;
     }
     else if (ret==0){
@@ -447,7 +447,7 @@ static int smtc_calibrate(Self self)
 {
     int ret = 0;
 	SMTC_LOG_INF("Enter");
-    
+
     ret = smtc_send_cmd(self, CMD_COMPENSATE);
     if (ret){
         SMTC_LOG_ERR("Failed to calibrate. ret=%d", ret);
@@ -465,7 +465,7 @@ static int smtc_is_irq_low(Self self)
 //#################################################################################################
 static ssize_t smtc_calibration_show(struct device *dev,
         struct device_attribute *attr, char *buf)
-{    
+{
     int i, count=0, ph, shift;
     u32 reg_val = 0;
     u16 offset;
@@ -488,13 +488,13 @@ static ssize_t smtc_calibration_show(struct device *dev,
     }else if (i!=0){
         SMTC_LOG_INF("chip completed the compensation after waiting for %d ms", i*100);
     }
-    
+
     for(ph =0; ph < NUM_PHASES; ph++)
     {
         shift = ph*4;
         smtc_i2c_read(self, REG_PH0_OFFSET + shift*OFFSET_PH_REG_SHIFT,  &reg_val);
 		offset = (u16)(reg_val & OFFSET_VAL_MASK);
-        
+
         count += sprintf(buf+count, "PH%d=%d ", ph, offset);
     }
     count += sprintf(buf+count, "\n");
@@ -511,7 +511,7 @@ static ssize_t smtc_calibration_store(struct device *dev,
     smtc_calibrate(self);
     return count;
 }
-        
+
 //=================================================================================================
 static ssize_t smtc_reg_write_store(struct device *dev,
         struct device_attribute *attr, const char *buf, size_t count)
@@ -540,14 +540,14 @@ static ssize_t smtc_reg_write_store(struct device *dev,
     else{
         smtc_i2c_write(self, reg_addr, reg_val);
     }
-    
+
     return count;
 }
-//-------------------------------------------------------------------------------------------------        
+//-------------------------------------------------------------------------------------------------
 static ssize_t smtc_reg_write_show(struct device *dev,
         struct device_attribute *attr, char *buf)
-{    
-    return sprintf(buf, 
+{
+    return sprintf(buf,
         "\nUsage: echo reg_addr,reg_val > reg_write\n"
         "Example: echo 0x4004,0x74 > reg_write\n");
 }
@@ -580,10 +580,10 @@ static ssize_t smtc_reg_read_store(struct device *dev,
 
     return count;
 }
-//-------------------------------------------------------------------------------------------------        
+//-------------------------------------------------------------------------------------------------
 static ssize_t smtc_reg_read_show(struct device *dev,
         struct device_attribute *attr, char *buf)
-{    
+{
     int count=0, ret;
     u32 reg_val = 0, reading_reg;
     Self self = NULL;
@@ -591,7 +591,7 @@ static ssize_t smtc_reg_read_show(struct device *dev,
     reading_reg = self->variables.reading_reg;
 
     if (reading_reg == 0xFFFF){
-        count = sprintf(buf, 
+        count = sprintf(buf,
             "\nUsage: echo reg_addr > reg_read; cat reg_read\n"
             "Example: echo 0x4000 > reg_read; cat reg_read\n");
     }else{
@@ -611,24 +611,24 @@ static ssize_t smtc_reg_read_show(struct device *dev,
 static ssize_t smtc_raw_data_show(struct device *dev,
         struct device_attribute *attr, char *buf)
 {
-    int ph, bytes=0;    
+    int ph, bytes=0;
 	u32 reg_val;
 	u16 offset;
     s32 useful, average, diff;
     Self self = dev_get_drvdata(dev);
-    
+
     for (ph=0; ph<NUM_PHASES; ph++)
     {
         int shift = ph*4;
         smtc_i2c_read(self, REG_PH0_USEFUL  + shift,    &reg_val);
         useful = (s32)reg_val>>10;
-        
+
         smtc_i2c_read(self, REG_PH0_AVERAGE + shift,    &reg_val);
         average = (s32)reg_val>>10;
-        
+
         smtc_i2c_read(self, REG_PH0_DIFF    + shift,    &reg_val);
         diff = (s32)reg_val>>10;
-        
+
         smtc_i2c_read(self, REG_PH0_OFFSET + shift*OFFSET_PH_REG_SHIFT,  &reg_val);
         offset = (u16)(reg_val & OFFSET_VAL_MASK);
 
@@ -637,9 +637,31 @@ static ssize_t smtc_raw_data_show(struct device *dev,
 
     }
     smtc_log_raw_data(self);
-    
+
     return bytes;
 }
+
+static ssize_t smtc_batch_store(struct device *dev,
+    struct device_attribute *attr, const char *buf, size_t count)
+{
+    int flag = 0;
+    int handle;
+    int report_rate;
+    s64 batch_timeout;
+
+    SMTC_LOG_ERR("buf=%s\n", buf);
+    if (sscanf(buf, "%d %d %d %lld\n",
+                   &handle, &flag,
+                   &report_rate,
+                   &batch_timeout) != 4)
+                return -EINVAL;
+    SMTC_LOG_ERR("handle = %d, rate = %d, batch_latency = %lld\n",
+                 handle,
+                 report_rate, batch_timeout);
+
+        return count;
+}
+
 //=================================================================================================
 //      Enable/Disable Channels/Phases
 //=================================================================================================
@@ -649,15 +671,20 @@ static ssize_t smtc_enable_store(struct device *dev,
     u32 phase=0, enable=0, enabled=0;
 	u32 reg_val=0;
     Self self = dev_get_drvdata(dev);
+    int handle = -1;
 
+    SMTC_LOG_ERR("buf=%s", buf);
     /* Enable/Disable ONE phase at a time
-    command: echo phase,enable > enable, 
-    example: 
+    command: echo phase,enable > enable,
+    example:
         echo 2,1 > enable #enable phase 2
         echo 3,0 > enable #disable phase 3
     */
-    if (sscanf(buf, "%d,%d", &phase, &enable) == 2)
+    if ((sscanf(buf, "%d %d\n", &handle, &enable) == 2) || (sscanf(buf, "%d,%d", &phase, &enable) == 2))
     {
+	if(handle >= 161)
+	    phase = (handle - 161);
+
         SMTC_LOG_INF("%s phase=%d", enable ? "Enable" : "Disable", phase);
         if (phase >= NUM_PHASES){
             SMTC_LOG_ERR("phase=%d is not in the range [0, %d]", phase, NUM_PHASES-1);
@@ -690,8 +717,8 @@ static ssize_t smtc_enable_store(struct device *dev,
         }
     }
     /* Enable/Disable MULTIPLE phases at a time
-    command: echo phases > enable, 
-    example: 
+    command: echo phases > enable,
+    example:
         echo 0x1 > enable #Enable phase(0) and with all other phases disbled. 0x1 = 0b0001
         echo 0x5 > enable #Enable phase(0,2) and with all other phases disbled. 0x5 = 0b0101
     */
@@ -721,9 +748,9 @@ static ssize_t smtc_enable_store(struct device *dev,
 //-------------------------------------------------------------------------------------------------
 static ssize_t smtc_enable_show(struct device *dev,
         struct device_attribute *attr, char *buf)
-{  
+{
     u32 reg_val;
-    int ph=0, ret=0, bytes=0;	
+    int ph=0, ret=0, bytes=0;
     Self self = dev_get_drvdata(dev);
 
     ret = smtc_i2c_read(self, REG_PHEN, &reg_val);
@@ -749,7 +776,7 @@ static ssize_t smtc_enable_show(struct device *dev,
     bytes += sprintf(buf+bytes, "\n");
 
     bytes += sprintf(buf+bytes, "-----------------------------------------------------------\n");
-    bytes += sprintf(buf+bytes, 
+    bytes += sprintf(buf+bytes,
         "Usage:\n"
         "1. Enable/Disable ONE phase at a time\n"
         "   command: echo phase,enable > enable\n"
@@ -759,7 +786,7 @@ static ssize_t smtc_enable_show(struct device *dev,
 
         "2. Enable/Disable MULTIPLE phases at a time\n"
         "   command: echo phases > enable\n"
-        "   example:\n" 
+        "   example:\n"
         "       echo 0x1 > enable #Enable phase(0) and with all other phases disbled. 0x1 = 0b0001\n"
         "       echo 0x5 > enable #Enable phase(0,2) and with all other phases disbled. 0x5 = 0b0101\n\n"
     );
@@ -783,7 +810,7 @@ static ssize_t smtc_enable_ph0_store(struct device *dev,
         SMTC_LOG_ERR("Invalid command format. Usage: ehco '0' | '1' > enable_ch0");
         return -EINVAL;
     }
-    smtc_i2c_read(self, REG_PHEN, &reg_val);    
+    smtc_i2c_read(self, REG_PHEN, &reg_val);
 
     if (enable)
     {
@@ -794,7 +821,7 @@ static ssize_t smtc_enable_ph0_store(struct device *dev,
             reg_val |= 1<<0;
             smtc_enable_phase(self, reg_val);
             smtc_calibrate(self);
-        }        
+        }
     }
     else
     {
@@ -815,8 +842,8 @@ static ssize_t smtc_enable_ph0_show(struct device *dev,
 {
     int bytes=0;
 
-    bytes = sprintf(buf, "%s", 
-            "Usage: echo arg > enable_ch0\n" 
+    bytes = sprintf(buf, "%s",
+            "Usage: echo arg > enable_ch0\n"
             "Disable(arg=0) or Enable(arg=1) Phase 0\n\n"
     );
     return bytes;
@@ -835,7 +862,7 @@ static ssize_t smtc_enable_ph1_store(struct device *dev,
         SMTC_LOG_ERR("Invalid command format. Usage: ehco '0' | '1' > enable_ph1");
         return -EINVAL;
     }
-    smtc_i2c_read(self, REG_PHEN, &reg_val);    
+    smtc_i2c_read(self, REG_PHEN, &reg_val);
 
     if (enable)
     {
@@ -846,7 +873,7 @@ static ssize_t smtc_enable_ph1_store(struct device *dev,
             reg_val |= 1<<1;
             smtc_enable_phase(self, reg_val);
             smtc_calibrate(self);
-        }        
+        }
     }
     else
     {
@@ -866,8 +893,8 @@ static ssize_t smtc_enable_ph1_show(struct device *dev,
 {
     int bytes=0;
 
-    bytes = sprintf(buf, "%s", 
-            "Usage: echo arg > enable_ph1\n" 
+    bytes = sprintf(buf, "%s",
+            "Usage: echo arg > enable_ph1\n"
             "Disable(arg=0) or Enable(arg=1) phase 1\n\n"
     );
     return bytes;
@@ -892,29 +919,29 @@ static ssize_t smtc_debug_store(struct device *dev,
             return -EINVAL;
         }
     }
-    
+
     switch (cmd){
     case 0:
         smtc_test_func(self);
         break;
-    case 1: 
+    case 1:
         self->dbg_flag.log_raw_data = arg;
         SMTC_LOG_INF("%s log raw data when proximity status is changed", arg ? "Enable" : "Disable");
         break;
-    case 2: 
+    case 2:
         self->dbg_flag.log_dbg_data = arg;
         SMTC_LOG_INF("%s log debug data", arg ? "Enable" : "Disable");
         break;
-    
-    case 3: 
+
+    case 3:
         self->dbg_flag.log_hex_data = arg;
         SMTC_LOG_INF("%s log hex data", arg ? "Enable" : "Disable");
         break;
 
    default:
         SMTC_LOG_ERR("Invalid command=%d. Use 'cat debug' to show the usages.", cmd);
-    }	
-    
+    }
+
     return count;
 }
 
@@ -922,7 +949,7 @@ static ssize_t smtc_debug_store(struct device *dev,
 static ssize_t smtc_debug_show(struct device *dev,
         struct device_attribute *attr, char *buf)
 {
-    return sprintf(buf, "%s", 
+    return sprintf(buf, "%s",
         "Usage: echo 'cmd,arg' > debug\n"
         "cmd:\n"
         "1: Turn on(arg=1) | off(arg=0), default=0\n"
@@ -938,7 +965,7 @@ static ssize_t smtc_debug_show(struct device *dev,
 //read and print the value of registers in the dts
 static ssize_t smtc_dump_reg_show(struct device *dev,
         struct device_attribute *attr, char *buf)
-{  
+{
     int i, bytes=0;
     u32 addr, val;
     Self self = dev_get_drvdata(dev);
@@ -946,7 +973,7 @@ static ssize_t smtc_dump_reg_show(struct device *dev,
     for (i=0; i<self->num_regs; i++)
     {
         addr = self->regs_addr_val[i].addr;
-        
+
         if (smtc_i2c_read(self, addr, &val) > 0){
             bytes += sprintf(buf+bytes, "0x%X= 0x%08X\n", addr, val);
         }else{
@@ -958,7 +985,7 @@ static ssize_t smtc_dump_reg_show(struct device *dev,
 
 static ssize_t smtc_irq_gpio_show(struct device *dev,
         struct device_attribute *attr, char *buf)
-{  
+{
     Self self = dev_get_drvdata(dev);
     int value = gpio_get_value(self->gpio);
     return sprintf(buf, "GPIO-%d=%d %s\n", self->gpio, value, value ? "hi" : "lo");
@@ -975,6 +1002,7 @@ static DEVICE_ATTR(enable_ph1,     0664, smtc_enable_ph1_show,     smtc_enable_p
 static DEVICE_ATTR(debug,          0664, smtc_debug_show,          smtc_debug_store);
 static DEVICE_ATTR(dump_reg,       0444, smtc_dump_reg_show,       NULL);
 static DEVICE_ATTR(irq_gpio,       0444, smtc_irq_gpio_show,       NULL);
+static DEVICE_ATTR(batch,          0664, NULL,                     smtc_batch_store);
 
 static struct attribute *smtc_sysfs_nodes_attr[] =
 {
@@ -988,7 +1016,8 @@ static struct attribute *smtc_sysfs_nodes_attr[] =
     &dev_attr_debug.attr,
     &dev_attr_dump_reg.attr,
     &dev_attr_irq_gpio.attr,
-    
+    &dev_attr_batch.attr,
+
     NULL,
 };
 static struct attribute_group smtc_sysfs_nodes =
@@ -1001,7 +1030,7 @@ static void smtc_get_ph_prox_state(u32 prox_reg_val, PROX_STATUS ph_state[NUM_PH
 {
     int ph;
     phase_p phase;
-	
+
 	for (ph=0; ph<NUM_PHASES; ph++)
 	{
         phase = &smtc_phase_table[ph];
@@ -1020,7 +1049,7 @@ static void smtc_get_ph_prox_state(u32 prox_reg_val, PROX_STATUS ph_state[NUM_PH
         }
         else{
             ph_state[ph] = RELEASED;
-        }		
+        }
 	}
 }
 
@@ -1041,7 +1070,7 @@ static int smtc_parse_dts(Self self)
     int ph;
     struct device_node *of_node = self->client->dev.of_node;
     enum of_gpio_flags flags;
-    
+
     if (!of_node)
     {
         SMTC_LOG_ERR("of_node == NULL");
@@ -1050,7 +1079,7 @@ static int smtc_parse_dts(Self self)
 
     self->gpio = of_get_named_gpio_flags(of_node, "semtech,nirq-gpio", 0, &flags);
     SMTC_LOG_DBG("irq_gpio= %d", self->gpio);
-    
+
     if (self->gpio < 0)
     {
         SMTC_LOG_ERR("Failed to get irq_gpio.");
@@ -1058,12 +1087,12 @@ static int smtc_parse_dts(Self self)
     }
 
     //.............................................................................................
-    //load main and reference phase setup	
+    //load main and reference phase setup
     if (of_property_read_u32(of_node, "semtech,main-phases", &self->main_phases) )
 	{
 		SMTC_LOG_ERR("Failed to get main-phases");
         return -EINVAL;
-	}    
+	}
     SMTC_LOG_DBG("main-phases= 0x%X", self->main_phases);
 
 
@@ -1077,7 +1106,7 @@ static int smtc_parse_dts(Self self)
     self->ref_phase_a = -1;
 	self->ref_phase_b = -1;
     self->ref_phase_c = -1;
-    
+
     for (ph=0; ph<NUM_PHASES; ph++)
     {
         if (1<<ph & self->ref_phases){
@@ -1091,7 +1120,7 @@ static int smtc_parse_dts(Self self)
                 self->ref_phase_c = ph;
             }
             else{
-                SMTC_LOG_ERR("Max 3 reference phases are supported. ref_phases passed from dts= 0x%X", 
+                SMTC_LOG_ERR("Max 3 reference phases are supported. ref_phases passed from dts= 0x%X",
                     self->ref_phases);
                 return -EINVAL;
             }
@@ -1104,14 +1133,14 @@ static int smtc_parse_dts(Self self)
     //load register settings
     self->num_regs = of_property_count_u32_elems(of_node, "semtech,reg-init");
     SMTC_LOG_DBG("number of registers= %d", self->num_regs);
-    
+
     if (unlikely(self->num_regs <= 0 || self->num_regs %2 != 0))
     {
         SMTC_LOG_ERR("Invalid reg_num= %d, please check dtsi config", self->num_regs);
         return -EINVAL;
     }
     else
-    {        
+    {
         self->num_regs /= 2;
         self->regs_addr_val = devm_kzalloc(&self->client->dev, sizeof(reg_addr_val_t)*self->num_regs, GFP_KERNEL);
         if (unlikely(!self->regs_addr_val))
@@ -1137,7 +1166,7 @@ static int smtc_check_hardware(Self self)
 {
     int ret;
     u32 chip_id;
-    
+
     ret = smtc_i2c_read(self, REG_WHO_AMI, &chip_id);
     if(ret < 0)
     {
@@ -1166,14 +1195,14 @@ static int smtc_init_irq_gpio(Self self)
         SMTC_LOG_ERR("Invalid irq_gpio= %d. Please check DTS stup.", self->gpio);
 		return -EINVAL;
 	}
-	
+
     ret = gpio_request(self->gpio, "smtc_nirq_gpio");
     if (ret < 0)
     {
 		SMTC_LOG_ERR("Failed to request GPIO= %d", self->gpio);
         return ret;
     }
-    
+
     ret = gpio_direction_input(self->gpio);
     if (ret < 0)
     {
@@ -1192,7 +1221,7 @@ static int smtc_init_irq_gpio(Self self)
     if (ret < 0){
         SMTC_LOG_INF("Failed to nable wake up function on gpio=%d irq=%d", self->gpio, self->irq_id);
     }
-#endif    
+#endif
 
     return ret;
 }
@@ -1212,7 +1241,7 @@ static int smtc_init_registers(Self self)
         SMTC_LOG_DBG("0x%X= 0x%X", reg_addr, reg_val);
 
         if (likely(reg_addr != REG_PHEN)){
-            ret = smtc_i2c_write(self, reg_addr, reg_val);            
+            ret = smtc_i2c_write(self, reg_addr, reg_val);
         }else{
             mutex_lock(&self->phen_lock);
             self->variables.enabled_phases = reg_val;
@@ -1227,7 +1256,7 @@ static int smtc_init_registers(Self self)
     }
 
     /*Chip must be activated once after reset.
-    You can disable all phases in the register settings if your product need to 
+    You can disable all phases in the register settings if your product need to
     put the SAR sensor into the sleep mode during startup
     */
     ret = smtc_send_cmd(self, CMD_ACTIVATE);
@@ -1247,7 +1276,7 @@ static int smtc_wait_reset_done(Self self)
         msleep(2);
         ret = smtc_i2c_read(self, REG_IRQ_SRC, &irq_src);
         if (ret > 0 && irq_src != 0)
-            return 0;        
+            return 0;
     }
 
     SMTC_LOG_ERR("Failed to read reset IRQ");
@@ -1258,16 +1287,16 @@ static int smtc_reset_and_init_chip(Self self)
 {
     int ret = 0;
     SMTC_LOG_INF("Enter");
-    
+
     ret = smtc_i2c_write(self, REG_RESET, 0xDE);
     if(ret<0){return ret;}
-    
+
     ret = smtc_wait_reset_done(self);
     if(ret){return ret;}
-    
+
     ret = smtc_init_registers(self);
     if(ret){return ret;}
-    
+
     //make sure no interrupts are pending
     ret = smtc_read_and_clear_irq(self, NULL);
     return ret;
@@ -1276,7 +1305,7 @@ static int smtc_reset_and_init_chip(Self self)
 //=================================================================================================
 #ifdef ENABLE_ESD_RECOVERY
 static int smtc_recover_esd_reset(Self self)
-{    
+{
     int ret = 0;
     u32 irq_mask=0;
     ret = smtc_i2c_read(self, REG_IRQ_MASK, &irq_mask);
@@ -1286,7 +1315,7 @@ static int smtc_recover_esd_reset(Self self)
     }
     SMTC_LOG_DBG("irq_mask=0x%X", irq_mask);
     if ((irq_mask & 1<<4) != 0){
-        return 0;        
+        return 0;
     }
     SMTC_LOG_INF("Compensation IRQ mask is cleard, try to reset and re-init chip");
     ret = smtc_reset_and_init_chip(self);
@@ -1309,8 +1338,8 @@ static void smtc_log_dbg_data(Self self)
     PROX_STATUS ph_prox_state[NUM_PHASES];
 
     int ref_ph_a, ref_ph_b, ref_ph_c;
-	s32 ref_a_use=0, ref_b_use=0, ref_c_use=0;    
-    char ref_a_name[] = "na"; 
+	s32 ref_a_use=0, ref_b_use=0, ref_c_use=0;
+    char ref_a_name[] = "na";
     char ref_b_name[] = "na";
     char ref_c_name[] = "na";
 
@@ -1320,7 +1349,7 @@ static void smtc_log_dbg_data(Self self)
 
     smtc_i2c_read(self, REG_DBG_SEL, &reg_val);
     ph = reg_val>>3 & 0x7;
-    
+
 	smtc_i2c_read(self, REG_PROX_STATUS, &reg_val);
     SMTC_LOG_DBG("REG_PROX_STATUS=0x%X", reg_val);
 	smtc_get_ph_prox_state(reg_val, ph_prox_state);
@@ -1347,7 +1376,7 @@ static void smtc_log_dbg_data(Self self)
 
 	smtc_i2c_read(self, REG_RAW_DATA, &reg_val);
 	main_raw = (s32)reg_val>>10;
-    
+
 	smtc_i2c_read(self, REG_DLT_VAR, &reg_val);
 	dlt_var = (s32)reg_val>>4;
 
@@ -1356,16 +1385,16 @@ static void smtc_log_dbg_data(Self self)
 
 	smtc_i2c_read(self, REG_PH0_AVERAGE + ph*4, &reg_val);
 	avg = (s32)reg_val>>10;
-    
+
 	smtc_i2c_read(self, REG_PH0_DIFF + ph*4, &reg_val);
 	diff = (s32)reg_val>>10;
-    
+
 	smtc_i2c_read(self, REG_PH0_OFFSET + ph*4*OFFSET_PH_REG_SHIFT, &reg_val);
 	off = (u16)(reg_val & OFFSET_VAL_MASK);
-    
+
 	pr_info(
 	"SMTC_DBG PH=%d USE=%d RAW=%d PH%s_USE=%d PH%s_USE=%d PH%s_USE=%d STATE=%d AVG=%d DIFF=%d OFF=%d DLT=%d SMTC_END\n",
-	ph, main_use, main_raw, ref_a_name, ref_a_use, ref_b_name, ref_b_use, ref_c_name, ref_c_use, 
+	ph, main_use, main_raw, ref_a_name, ref_a_use, ref_b_name, ref_b_use, ref_c_name, ref_c_use,
 	state, avg, diff, off, dlt_var);
 }
 
@@ -1380,11 +1409,11 @@ static void smtc_log_raw_data(Self self)
     PROX_STATUS ph_prox_state[NUM_PHASES];
 
     int ref_ph_a, ref_ph_b, ref_ph_c;
-    s32 ref_a_use=0, ref_b_use=0, ref_c_use=0;    
-    char ref_a_name[] = "na"; 
+    s32 ref_a_use=0, ref_b_use=0, ref_c_use=0;
+    char ref_a_name[] = "na";
     char ref_b_name[] = "na";
     char ref_c_name[] = "na";
-    
+
     ref_ph_a = self->ref_phase_a;
     ref_ph_b = self->ref_phase_b;
     ref_ph_c = self->ref_phase_c;
@@ -1432,14 +1461,14 @@ static void smtc_log_raw_data(Self self)
         pr_info(
         "SMTC_DAT PH= %d DIFF= %d USE= %d PH%s_USE= %d PH%s_USE= %d PH%s_USE= %d STATE= %d OFF= %d AVG= %d SMTC_END\n",
         ph, diff, useful, ref_a_name, ref_a_use, ref_b_name, ref_b_use, ref_c_name, ref_c_use, state, offset, average);
-        
+
         if (self->dbg_flag.log_hex_data){
             pr_info(
             "SMTC_HEX PH= %d USE= 0x%X AVG= 0x%X DIF= 0x%X PH%d_DLT= 0x%X SMTC_END\n",
             ph, use_hex, avg_hex, dif_hex, dbg_ph, dlt_hex);
         }
     }
-    
+
     if (self->dbg_flag.log_dbg_data){
         smtc_log_dbg_data(self);
     }
@@ -1468,10 +1497,10 @@ static void smtc_process_touch_status(Self self)
         phase = &smtc_phase_table[ph];
         if (phase->usage != MAIN)
             continue;
-        
+
         input = phase->input;
         need_sync = false;
-        
+
     	if (prox_state & phase->prox4_mask)
     	{
             if (phase->state == PROX4){
@@ -1495,7 +1524,7 @@ static void smtc_process_touch_status(Self self)
                 msg_len += sprintf(msg_updated_status+msg_len, " PH%d=3", ph);
                 phase->state = PROX3;
                 input_report_abs(input, ABS_DISTANCE, (int)PROX3);
-                need_sync = true;					
+                need_sync = true;
             }
     	}
         else if (prox_state & phase->prox2_mask)
@@ -1508,7 +1537,7 @@ static void smtc_process_touch_status(Self self)
                 msg_len += sprintf(msg_updated_status+msg_len, " PH%d=2", ph);
                 phase->state = PROX2;
                 input_report_abs(input, ABS_DISTANCE, (int)PROX2);
-                need_sync = true;					
+                need_sync = true;
             }
     	}
         else if (prox_state & phase->prox1_mask)
@@ -1521,12 +1550,12 @@ static void smtc_process_touch_status(Self self)
                 msg_len += sprintf(msg_updated_status+msg_len, " PH%d=1", ph);
                 phase->state = PROX1;
                 input_report_abs(input, ABS_DISTANCE, (int)PROX1);
-                need_sync = true;					
+                need_sync = true;
             }
     	}
         else
         {
-            if (phase->state == RELEASED){                
+            if (phase->state == RELEASED){
                 SMTC_LOG_DBG("%s is RELEASED already", phase->name);
             }
             else
@@ -1551,13 +1580,13 @@ static void smtc_process_touch_status(Self self)
         for (ph = 0; ph < NUM_PHASES; ph++)
         {
             phase = &smtc_phase_table[ph];
-            if (phase->usage == MAIN){                    
+            if (phase->usage == MAIN){
                 msg_len += sprintf(msg_prox_status+msg_len, " PH%d=%d", ph, phase->state);
             }
         }
 
         SMTC_LOG_INF("Prox status= 0x%08X %s Updated status:%s", prox_state, msg_prox_status, msg_updated_status);
-        
+
     }else{
         SMTC_LOG_INF("No proximity state is updated");
     }
@@ -1639,7 +1668,7 @@ static irqreturn_t smtc_irq_isr(int irq, void *pvoid)
 #else
     SMTC_LOG_DBG("Stay awake");
     __pm_stay_awake(self->wake_lock);
-#endif    
+#endif
 #endif
 
 #ifdef USE_THREAD_IRQ
@@ -1656,7 +1685,7 @@ static irqreturn_t smtc_irq_isr(int irq, void *pvoid)
 
 //#################################################################################################
 static int smtc_probe(struct i2c_client *client, const struct i2c_device_id *id)
-{    
+{
     int ret = 0, i;
     Self self = NULL;
     struct input_dev *input = NULL;
@@ -1671,8 +1700,8 @@ static int smtc_probe(struct i2c_client *client, const struct i2c_device_id *id)
         return ret;
     }
 
-    //kernel will automatically free the memory allocated by the devm_kzalloc 
-    //when probe is failed and driver is removed. 
+    //kernel will automatically free the memory allocated by the devm_kzalloc
+    //when probe is failed and driver is removed.
     self = devm_kzalloc(&client->dev, sizeof(self_t), GFP_KERNEL);
     if (!self)
     {
@@ -1709,14 +1738,14 @@ static int smtc_probe(struct i2c_client *client, const struct i2c_device_id *id)
 #ifdef SMTC_SX933X
     self->irq_handler[2] = smtc_process_touch_status; //PROX2(table) and PROX3(body) irq
 #endif
-    
+
     ret = sysfs_create_group(&client->dev.kobj, &smtc_sysfs_nodes);
     if (ret)
     {
         SMTC_LOG_ERR("Failed to create sysfs node.");
         goto FREE_GPIO;
     }
-    
+
     //.............................................................................................
     //Create input nodes for each main phase
     self->phases = smtc_phase_table;
@@ -1725,7 +1754,7 @@ static int smtc_probe(struct i2c_client *client, const struct i2c_device_id *id)
         phase_p phase = &smtc_phase_table[i];
         SMTC_LOG_DBG("name=%s input=0x%p enabled=%d usage=%d state=%d",
             phase->name, phase->input, phase->enabled, phase->usage, phase->usage);
-        
+
         //main phases were specified in the dts
         if ((self->main_phases & 1<<i) == 0)
         {
@@ -1734,7 +1763,7 @@ static int smtc_probe(struct i2c_client *client, const struct i2c_device_id *id)
             }
             continue;
         }
-        
+
         input = input_allocate_device();
         if (!input)
         {
@@ -1785,7 +1814,7 @@ static int smtc_probe(struct i2c_client *client, const struct i2c_device_id *id)
         SMTC_LOG_ERR("Failed to request irq= %d.", self->irq_id);
         goto FREE_INPUTS;
     }
- #endif   
+ #endif
 
     SMTC_LOG_INF("registered irq= %d.", self->irq_id);
 
@@ -1839,7 +1868,7 @@ static int smtc_remove(struct i2c_client *client)
     smtc_read_and_clear_irq(self, NULL);
     free_irq(self->irq_id, self);
 
-#ifndef USE_THREAD_IRQ    
+#ifndef USE_THREAD_IRQ
     cancel_delayed_work_sync(&self->worker);
 #endif
 
@@ -1852,16 +1881,16 @@ static int smtc_remove(struct i2c_client *client)
     sysfs_remove_group(&client->dev.kobj, &smtc_sysfs_nodes);
     gpio_free(self->gpio);
 
-#ifdef ENABLE_STAY_AWAKE    
+#ifdef ENABLE_STAY_AWAKE
     wakeup_source_unregister(self->wake_lock);
-#endif    
+#endif
 
     return 0;
 }
 
 //===================================================`==============================================
 static int smtc_suspend(struct device *dev)
-{    
+{
 //.................................................................................................
 #if DISABLE_DURING_SUSPEND
     Self self = dev_get_drvdata(dev);
@@ -1909,7 +1938,7 @@ static int smtc_resume(struct device *dev)
     self_t *self = dev_get_drvdata(dev);
     SMTC_LOG_INF("Enable SAR sensor");
     enable_irq(self->irq_id);
-    
+
     if (mutex_trylock(&self->phen_lock))
     {
         SMTC_LOG_DBG("enabled_phases=0x%X", self->variables.enabled_phases);
@@ -1944,7 +1973,7 @@ static int smtc_resume(struct device *dev)
 #endif
 
 //in case touch status updated during system suspend
-#ifdef USE_THREAD_IRQ    
+#ifdef USE_THREAD_IRQ
     SMTC_LOG_DBG("Force to update status");
     smtc_update_status(self);
 #else
