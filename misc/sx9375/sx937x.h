@@ -263,7 +263,7 @@
 
 //=================================================================================================
 //Chip specific defination
-#define SMTC_SX933X
+//#define SMTC_SX933X
 #define NUM_PHASES              8
 #define SMTC_CHIP_NAME          "sx937x"
 #define SMTC_DRIVER_NAME        "smtc_sx937x"
