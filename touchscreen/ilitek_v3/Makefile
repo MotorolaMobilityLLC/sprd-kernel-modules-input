@@ -11,6 +11,7 @@
 KO_MODULE_NAME := ilitek_v3_spi_ts
 KO_MODULE_OUT := $(BSP_MODULES_OUT)/$(KO_MODULE_NAME)
 KO_MODULE_KBUILD := $(CURDIR)/Kbuild
+export KBUILD_EXTRA_SYMBOLS += $(BSP_MODULES_OUT)/sprd-drm/Module.symvers
 
 .PHONY: modules modules_install clean
 

@@ -515,6 +515,7 @@ struct gesture_symbol {
 	u8 alphabet_two_line_2_bottom :1;
 	u8 alphabet_F                 :1;
 	u8 alphabet_AT                :1;
+	u8 single_tap                 :1;
 	u8 reserve0 		      :5;
 };
 
@@ -841,6 +842,7 @@ struct ilitek_pen_info {
 
 /* The example for the gesture virtual keys */
 #define GESTURE_DOUBLECLICK				0x58
+#define GESTURE_SINGLECLICK				0x57
 #define GESTURE_UP						0x60
 #define GESTURE_DOWN					0x61
 #define GESTURE_LEFT					0x62
@@ -904,6 +906,7 @@ struct ilitek_pen_info {
 #define ALPHABET_TWO_LINE_2_BOTTOM			(ON)/* BIT16 */
 #define ALPHABET_F					(ON)/* BIT17 */
 #define ALPHABET_AT					(ON)/* BIT18 */
+#define SINGLE_TAP                                   	(ON)/* BIT19 */
 
 /* FW data format */
 #define DATA_FORMAT_DEMO_CMD							0x00
@@ -1098,6 +1101,11 @@ struct ilitek_pen_info {
 
 #define SRAM_TEST_GROUP_LEN     			16
 #define SRAM_TEST_GROUP_STR_LEN 			64
+
+enum touch_state {
+	TOUCH_DEEP_SLEEP_STATE = 0,
+	TOUCH_LOW_POWER_STATE,
+};
 
 struct sram_test_para {
 	/* ini param */
@@ -1329,6 +1337,8 @@ struct ilitek_ts_data {
 	atomic_t esd_stat;
 	atomic_t ignore_report;
 	atomic_t stop_sync_stat;
+
+	u8 sys_gesture_type; //0x01 GESTURE_SINGLECLICK  0x02 GESTURE_DOUBLECLICK
 
 	/* Event for driver test */
 	struct completion esd_done;
@@ -1622,6 +1632,7 @@ extern int ili_ice_mode_ctrl_by_mode_spi(bool enable, bool mcu, int mode);
 extern int ili_ice_mode_ctrl_by_mode_i2c(bool enable, bool mcu, int mode);
 extern void ili_spi_ice_mode_read(u32 addr, u32 *data, int len, u8 msmode);
 extern int ili_ice_slave_write_register(u32 addr, u32 data, int len);
+extern void touch_set_state(int state);
 
 static inline void ipio_kfree(void **mem)
 {

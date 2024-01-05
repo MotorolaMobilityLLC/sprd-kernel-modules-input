@@ -628,6 +628,7 @@ void ili_set_gesture_symbol(void)
 		return;
 	}
 
+	ILI_INFO(" single_tap = %d\n", ilits->ges_sym.single_tap);
 	ILI_DBG(" double_tap = %d\n", ilits->ges_sym.double_tap);
 	ILI_DBG(" alphabet_line_2_top = %d\n", ilits->ges_sym.alphabet_line_2_top);
 	ILI_DBG(" alphabet_line_2_bottom = %d\n", ilits->ges_sym.alphabet_line_2_bottom);
@@ -2386,12 +2387,31 @@ void ili_report_gesture_mode(u8 *buf, int len)
 	ILI_INFO("gesture code = 0x%x, score = %d\n", gc->code, score);
 
 	switch (gc->code) {
+	case GESTURE_SINGLECLICK:
+		ILI_INFO("Single Click key event\n");
+		if((ilits->sys_gesture_type & 0x0d) == 0x01){
+			input_report_key(input, KEY_GESTURE_POWER, 1);
+			input_sync(input);
+			input_report_key(input, KEY_GESTURE_POWER, 0);
+			input_sync(input);
+		}else{
+			ILI_ERR("sys_gesture_type err %d\n",ilits->sys_gesture_type);
+		}
+		gc->type  = GESTURE_SINGLECLICK;
+		gc->clockwise = 1;
+		gc->pos_end.x = gc->pos_start.x;
+		gc->pos_end.y = gc->pos_start.y;
+		break;
 	case GESTURE_DOUBLECLICK:
 		ILI_INFO("Double Click key event\n");
-		input_report_key(input, KEY_GESTURE_POWER, 1);
-		input_sync(input);
-		input_report_key(input, KEY_GESTURE_POWER, 0);
-		input_sync(input);
+		if((ilits->sys_gesture_type & 0x0e) == 0x02){
+			input_report_key(input, KEY_GESTURE_POWER, 1);
+			input_sync(input);
+			input_report_key(input, KEY_GESTURE_POWER, 0);
+			input_sync(input);
+		}else{
+			ILI_ERR("sys_gesture_type err %d\n",ilits->sys_gesture_type);
+		}
 		gc->type  = GESTURE_DOUBLECLICK;
 		gc->clockwise = 1;
 		gc->pos_end.x = gc->pos_start.x;
