@@ -16,6 +16,7 @@ KO_MODULE_NAME := sx9375
 KO_MODULE_PATH := $(src)
 KO_MODULE_SRC  :=
 
+KBUILD_EXTRA_SYMBOLS += $(BSP_MODULES_OUT)/snd-soc-sprd-codec-ump9620/Module.symvers
 KO_MODULE_SRC += $(wildcard $(KO_MODULE_PATH)/*.c)
 
 #
