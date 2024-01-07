@@ -1862,9 +1862,9 @@ err_pinctrl:
 	if (p_sar->dts_info.use_inter_pull_up == true)
 		aw_sar_pinctrl_deinit(p_sar);
 #ifdef HEADSET_CALI
-free_headset_plug_cail:
         if (p_sar->dts_info.use_headset_plug_cail_flag == true)
                 headset_unregister_notifier(&p_sar->hs_notif);
+free_headset_plug_cail:
 #endif
 free_usb_plug_cail:
 	if (p_sar->dts_info.use_plug_cail_flag == true)
