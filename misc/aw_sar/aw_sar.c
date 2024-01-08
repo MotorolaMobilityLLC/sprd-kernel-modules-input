@@ -13,8 +13,10 @@
 #define USB_POWER_SUPPLY_NAME   "charger"
 #endif
 #else
-#define USB_POWER_SUPPLY_NAME   "usb"
+#define USB_POWER_SUPPLY_NAME   "battery"
 #endif
+
+#define CONFIG_USE_POWER_SUPPLY_ONLINE 1
 
 #define AW_I2C_RW_RETRY_TIME_MIN		(2000)
 #define AW_I2C_RW_RETRY_TIME_MAX		(3000)

@@ -23,9 +23,24 @@
 #include <linux/sort.h>
 #include <linux/gpio.h>
 #include <linux/of_gpio.h>
+#include <linux/notifier.h>
+#include <linux/usb.h>
+#include <linux/power_supply.h>
+#include <linux/version.h>
 
 //#include "sx933x.h"
 #include "sx937x.h"
+
+#define CONFIG_CAPSENSE_USB_CAL 1
+#ifdef CONFIG_CAPSENSE_USB_CAL
+#define USB_POWER_SUPPLY_NAME   "battery"
+#define CONFIG_USE_POWER_SUPPLY_ONLINE 1
+#endif
+//#define HEADSET_CALI 1
+#ifdef HEADSET_CALI
+extern int headset_register_notifier(struct notifier_block *nb);
+extern int headset_unregister_notifier(struct notifier_block *nb);
+#endif
 
 #define USE_THREAD_IRQ
 //#define ENABLE_STAY_AWAKE
@@ -151,6 +166,17 @@ typedef struct self_s
 #endif
 
     struct mutex phen_lock;
+
+#ifdef CONFIG_CAPSENSE_USB_CAL
+        struct work_struct ps_notify_work;
+        struct notifier_block ps_notif;
+        bool ps_is_present;
+#endif
+#ifdef HEADSET_CALI
+        struct work_struct hs_notify_work;
+        struct notifier_block hs_notif;
+        int hs_is_plug;
+#endif
 
     //Function that will be called back when corresponding IRQ is raised
     //Refer to register 0x4000
@@ -1683,6 +1709,100 @@ static irqreturn_t smtc_irq_isr(int irq, void *pvoid)
     return IRQ_HANDLED;
 }
 
+#ifdef CONFIG_CAPSENSE_USB_CAL
+static void ps_notify_callback_work(struct work_struct *work)
+{
+	struct self_s *self = container_of(work, struct self_s, ps_notify_work);
+	smtc_calibrate(self);
+}
+
+static int ps_get_state(struct power_supply *psy, bool *present)
+{
+	union power_supply_propval pval = {0};
+	int retval;
+
+#ifdef CONFIG_USE_POWER_SUPPLY_ONLINE
+	retval = power_supply_get_property(psy, POWER_SUPPLY_PROP_ONLINE,
+			&pval);
+#else
+	retval = power_supply_get_property(psy, POWER_SUPPLY_PROP_PRESENT,
+			&pval);
+#endif
+
+	if (retval) {
+		SMTC_LOG_ERR("%s psy get property failed\n", psy->desc->name);
+		return retval;
+	}
+	*present = (pval.intval) ? true : false;
+
+#ifdef CONFIG_USE_POWER_SUPPLY_ONLINE
+	SMTC_LOG_ERR("%s is %s\n", psy->desc->name,
+			(*present) ? "online" : "not online");
+#else
+	SMTC_LOG_ERR("%s is %s\n", psy->desc->name,
+			(*present) ? "present" : "not present");
+#endif
+
+	return 0;
+}
+
+static int ps_notify_callback(struct notifier_block *self,
+		unsigned long event, void *p)
+{
+	struct self_s *data =
+		container_of(self, struct self_s, ps_notif);
+	struct power_supply *psy = p;
+	bool present;
+	int retval;
+
+//#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,9,0)
+	if (event == PSY_EVENT_PROP_CHANGED
+//#else
+//	if ((event == PSY_EVENT_PROP_ADDED || event == PSY_EVENT_PROP_CHANGED)
+//#endif
+			&& psy && psy->desc->get_property && psy->desc->name &&
+			!strncmp(psy->desc->name, USB_POWER_SUPPLY_NAME, sizeof(USB_POWER_SUPPLY_NAME)) && data) {
+		SMTC_LOG_ERR("ps notification: event = %lu\n", event);
+		retval = ps_get_state(psy, &present);
+		if (retval) {
+			return retval;
+		}
+
+		if (event == PSY_EVENT_PROP_CHANGED) {
+			if (data->ps_is_present == present) {
+				SMTC_LOG_ERR("ps present state not change\n");
+				return 0;
+			}
+		}
+		data->ps_is_present = present;
+		schedule_work(&data->ps_notify_work);
+	}
+
+	return 0;
+}
+#endif
+#ifdef HEADSET_CALI
+static void hs_notify_callback_work(struct work_struct *work)
+{
+    struct self_s *self = container_of(work, struct self_s, hs_notify_work);
+    smtc_calibrate(self);
+}
+
+static int hs_notify_callback(struct notifier_block *self,
+                unsigned long event, void *p)
+{
+        struct self_s *data = container_of(self, struct self_s, hs_notif);
+
+        if (data->hs_is_plug == event) {
+                //AWLOGE(p_sar->dev, "hs plug state not change");
+                return 0;
+        }
+        data->hs_is_plug = event;
+        schedule_work(&data->hs_notify_work);
+
+        return 0;
+}
+#endif
 //#################################################################################################
 static int smtc_probe(struct i2c_client *client, const struct i2c_device_id *id)
 {
@@ -1690,6 +1810,9 @@ static int smtc_probe(struct i2c_client *client, const struct i2c_device_id *id)
     Self self = NULL;
     struct input_dev *input = NULL;
     struct i2c_adapter *adapter = NULL;
+#ifdef CONFIG_CAPSENSE_USB_CAL
+	struct power_supply *psy = NULL;
+#endif
     SMTC_LOG_INF("Start to initialize Semtech SAR sensor %s driver.", SMTC_CHIP_NAME);
 
     adapter = to_i2c_adapter(client->dev.parent);
@@ -1827,11 +1950,49 @@ static int smtc_probe(struct i2c_client *client, const struct i2c_device_id *id)
         goto FREE_IRQ;
     }
 #endif
+#ifdef CONFIG_CAPSENSE_USB_CAL
+                /*notify usb state*/
+                INIT_WORK(&self->ps_notify_work, ps_notify_callback_work);
+                self->ps_notif.notifier_call = ps_notify_callback;
+                ret = power_supply_reg_notifier(&self->ps_notif);
+                if (ret)
+                {
+                        SMTC_LOG_ERR("Unable to register ps_notifier: %d\n", ret);
+                        goto FREE_WAKEUP_SOURCE;
+                }
 
+                psy = power_supply_get_by_name(USB_POWER_SUPPLY_NAME);
+                if (psy) {
+                        ret = ps_get_state(psy, &self->ps_is_present);
+                        if (ret) {
+                                SMTC_LOG_ERR("psy get property failed rc=%d\n", ret);
+                                goto FREE_PS_NOTIFIER;
+                                //power_supply_unreg_notifier(&self->ps_notif);
+                        }
+                }
+#endif
+#ifdef HEADSET_CALI
+    INIT_WORK(&self->hs_notify_work, hs_notify_callback_work);
+    self->hs_notif.notifier_call = (notifier_fn_t)hs_notify_callback;
+    ret = headset_register_notifier(&self->hs_notif);
+    if (ret) {
+        SMTC_LOG_ERR("Unable to register hs_notifier: %d", ret);
+        goto FREE_PS_NOTIFIER;
+    }
+#endif
     SMTC_LOG_INF("Done.");
     return 0;
 
     //.............................................................................................
+#ifdef CONFIG_CAPSENSE_USB_CAL
+FREE_PS_NOTIFIER:
+    cancel_work_sync(&self->ps_notify_work);
+    power_supply_unreg_notifier(&self->ps_notif);
+FREE_WAKEUP_SOURCE:
+#ifdef ENABLE_STAY_AWAKE
+    wakeup_source_unregister(self->wake_lock);
+#endif
+#endif
 #ifdef ENABLE_STAY_AWAKE
 FREE_IRQ:
     free_irq(self->irq_id, self);
@@ -1860,6 +2021,13 @@ static int smtc_remove(struct i2c_client *client)
     Self self = i2c_get_clientdata(client);
     SMTC_LOG_INF("Remove driver.");
 
+#ifdef HEADSET_CALI
+    headset_unregister_notifier(&self->hs_notif);
+#endif
+#ifdef CONFIG_CAPSENSE_USB_CAL
+    cancel_work_sync(&self->ps_notify_work);
+    power_supply_unreg_notifier(&self->ps_notif);
+#endif
     //enter pause mode to save power
     ret = smtc_send_cmd(self, CMD_PAUSE);
     if (ret){
