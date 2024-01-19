@@ -400,6 +400,87 @@ int ili_irq_register(int type)
 }
 
 #if SPRD_SYSFS_SUSPEND_RESUME
+void ili_gesture_state_switch(void)
+{
+	if (ilits->sys_gesture_type) {
+		//gesture enable
+		if (!ilits->gesture) {
+			ilits->gesture = ENABLE;
+			touch_set_state(TOUCH_LOW_POWER_STATE);
+			ILI_INFO("gesture switch to enable");
+		}
+	}
+	else {
+		//gesture disable
+		if (ilits->gesture) {
+			ilits->gesture = DISABLE;
+			touch_set_state(TOUCH_DEEP_SLEEP_STATE);
+			ILI_INFO("gesture switch to disable");
+		}
+	}
+}
+
+static ssize_t gesture_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	ILI_INFO("supported_gesture_type=%d", ilits->sys_gesture_type);
+	return scnprintf(buf, PAGE_SIZE, "%02x\n", ilits->sys_gesture_type);
+}
+
+static ssize_t gesture_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t count)
+{
+	int value;
+	int err = 0;
+
+	err = sscanf(buf, "%d", &value);
+	if (err < 0) {
+		ILI_INFO("Failed to convert value\n");
+		return -EINVAL;
+	}
+
+	err = count;
+
+	switch (value) {
+		case 0x20:
+			ILI_INFO("single tap disable\n");
+			ilits->ges_sym.single_tap = OFF;
+			ilits->sys_gesture_type &= 0xFE;
+			break;
+		case 0x21:
+			ILI_INFO("single tap enable\n");
+			ilits->ges_sym.single_tap = SINGLE_TAP;
+			ilits->sys_gesture_type |= 0x01;
+			break;
+		case 0x30:
+			ILI_INFO("double tap disable\n");
+			ilits->ges_sym.double_tap = OFF;
+			ilits->sys_gesture_type &= 0xFD;
+			break;
+		case 0x31:
+			ILI_INFO("double tap enable\n");
+			ilits->ges_sym.double_tap = DOUBLE_TAP;
+			ilits->sys_gesture_type |= 0x02;
+			break;
+		default:
+			ILI_INFO("unsupport gesture mode type\n");
+			return err;
+	}
+
+	ili_gesture_state_switch();
+	ILI_INFO("sys_gesture_type=%d, ilits_gesture=%d\n", ilits->sys_gesture_type, ilits->gesture);
+
+	return err;
+}
+static DEVICE_ATTR_RW(gesture);
+
+static ssize_t ts_info_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	return sprintf(buf, "chip id: %s,fw=%d.%d.%d.%d\n",  ilits->chip->product_id, ilits->chip->fw_ver >> 24, (ilits->chip->fw_ver >> 16) & 0xFF,
+		(ilits->chip->fw_ver >> 8) & 0xFF, ilits->chip->fw_ver & 0xFF);
+}
+static DEVICE_ATTR_RO(ts_info);
+
 static ssize_t ts_suspend_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
 	return sprintf(buf, "%s\n", ilits->tp_suspend ? "true" : "false");
@@ -418,6 +499,8 @@ static DEVICE_ATTR_RW(ts_suspend);
 
 static struct attribute *ilitek_dev_suspend_atts[] = {
 	&dev_attr_ts_suspend.attr,
+	&dev_attr_ts_info.attr,
+	&dev_attr_gesture.attr,
 	NULL
 };
 
@@ -944,7 +1027,7 @@ static void __exit ilitek_plat_dev_exit(void)
 	ili_dev_remove(ENABLE);
 }
 
-#if QCOM_PANEL_SUSPEND_RESUME | (defined(__DRM_PANEL_H__) && defined(DRM_PANEL_EARLY_EVENT_BLANK))
+#if SPRD_SYSFS_SUSPEND_RESUME | QCOM_PANEL_SUSPEND_RESUME | (defined(__DRM_PANEL_H__) && defined(DRM_PANEL_EARLY_EVENT_BLANK))
 late_initcall(ilitek_plat_dev_init);
 #else
 module_init(ilitek_plat_dev_init);

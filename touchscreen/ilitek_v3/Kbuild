@@ -17,7 +17,7 @@ KO_MODULE_PATH := $(src)
 KO_MODULE_SRC  :=
 
 KO_MODULE_SRC += $(wildcard $(KO_MODULE_PATH)/*.c)
-
+export KBUILD_EXTRA_SYMBOLS += $(BSP_MODULES_OUT)/sprd-drm/Module.symvers
 #
 # Build Options
 #

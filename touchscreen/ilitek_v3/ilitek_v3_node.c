@@ -2614,6 +2614,16 @@ static ssize_t ilitek_node_ioctl_write(struct file *filp, const char *buff, size
 	} else if (strncmp(cmd, "ss", strlen(cmd)) == 0) {
 		ILI_INFO("sense_stop = %d\n", data[1]);
 		ilits->ss_ctrl = data[1];
+	} else if (strncmp(cmd, "enablegesture", strlen(cmd)) == 0) {
+		u8 gesture_type;
+		gesture_type = data[1] & 0xFF;
+		ILI_INFO("ilits->sys_gesture_type = %d\n", data[1]);
+		ilits->sys_gesture_type = gesture_type;
+		ilits->gesture = ENABLE;
+		ILI_INFO("gestureOn = %d\n", ilits->gesture);
+	} else if (strncmp(cmd, "disablegesture", strlen(cmd)) == 0) {
+		ilits->gesture = DISABLE;
+		ILI_INFO("gestureOff = %d\n", ilits->gesture);
 	} else if (strncmp(cmd, "iow", strlen(cmd)) == 0) {
 		int w_len = 0;
 		w_len = data[1];
