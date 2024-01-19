@@ -130,6 +130,7 @@ struct fpc_data {
     int power_ctl_gpio;
     bool wakeup_enabled;
     char hwid[HWID_SIZE];
+    char fpname[HWID_SIZE];
     struct wakeup_source ttw_wl;
     bool clocks_enabled;
 #ifdef CONFIG_FB
@@ -329,6 +330,9 @@ static int hw_reset(struct  fpc_data *fpc)
 
     irq_value = gpio_get_value(fpc->irq_gpio);
     fpsensor_log(DEBUG_LOG, "fpc %s IRQ after reset is %d\n", __func__, irq_value);
+    if(1 == irq_value) {
+        snprintf(fpc->fpname, sizeof(fpc->fpname), "fpc1560");
+    }
     func_exit();
     return rc;
 }
@@ -650,6 +654,17 @@ static ssize_t hwinfo_get(struct device *device,
 
 static DEVICE_ATTR(hwinfo, S_IRUSR | S_IWUSR, hwinfo_get, hwinfo_set);
 
+static ssize_t fpname_get(struct device *device,
+        struct device_attribute *attribute,
+        char* buffer)
+{
+    struct fpc_data *fpc = dev_get_drvdata(device);
+    fpsensor_log(INFO_LOG, "fpc %s get fpname:%s", __func__, fpc->fpname);
+    return snprintf(buffer, HWID_SIZE, "%s\n", fpc->fpname);
+}
+
+static DEVICE_ATTR(fpname, S_IRUSR | S_IRGRP | S_IROTH, fpname_get, NULL);
+
 /*
 static ssize_t screen_get(struct device *device,
         struct device_attribute *attr,
@@ -682,6 +697,7 @@ static struct attribute *fpc_attributes[] = {
     &dev_attr_irq.attr,
     &dev_attr_sensor.attr,
     &dev_attr_hwinfo.attr,
+    &dev_attr_fpname.attr,
     //&dev_attr_screen.attr,
     NULL
 };
@@ -895,6 +911,11 @@ static int fpc_probe(struct platform_device *pdev)
     rc = sprintf(fpc->hwid,"%s","NULL");
     if(rc < 0){
         fpsensor_log(ERROR_LOG, "%s init hwid failed\n", __func__);
+    }
+
+    rc = sprintf(fpc->fpname,"%s","NULL");
+    if(rc < 0){
+        fpsensor_log(ERROR_LOG, "%s init fpname failed\n", __func__);
     }
 
 #ifdef CONFIG_FB

@@ -186,7 +186,7 @@ struct gf_device {
 	struct class *class;
 	struct spi_device *spi;
 	int device_count;
-
+	char fpname[20];
 	spinlock_t spi_lock;
 	struct list_head device_entry;
 

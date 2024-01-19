@@ -99,8 +99,20 @@ static ssize_t gf_debug_store(struct device *dev,
 			struct device_attribute *attr, const char *buf, size_t count);
 static DEVICE_ATTR(debug, S_IRUGO | S_IWUSR, gf_debug_show, gf_debug_store);
 
+static ssize_t fpname_get(struct device *device,
+        struct device_attribute *attribute,
+        char* buffer)
+{
+	struct gf_device *gf_dev = dev_get_drvdata(device);
+	gf_debug(DEBUG_LOG, "gf_dev %s get fpname:%s", __func__, gf_dev->fpname);
+	return snprintf(buffer, sizeof(gf_dev->fpname), "%s\n", gf_dev->fpname);
+}
+
+static DEVICE_ATTR(fpname, S_IRUSR | S_IRGRP | S_IROTH, fpname_get, NULL);
+
 static struct attribute *gf_debug_attrs[] = {
 	&dev_attr_debug.attr,
+	&dev_attr_fpname.attr,
 	NULL
 };
 
@@ -685,7 +697,7 @@ static long gf_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 			break;
 		}
 		g_vendor_id = info.vendor_id;
-
+		snprintf(gf_dev->fpname, sizeof(gf_dev->fpname), "gc3976");
 		gf_debug(INFO_LOG, "%s: vendor_id 0x%x\n", __func__, g_vendor_id);
 		gf_debug(INFO_LOG, "%s: mode 0x%x\n", __func__, info.mode);
 		gf_debug(INFO_LOG, "%s: operation 0x%x\n", __func__, info.operation);
@@ -1166,6 +1178,7 @@ static int gf_platform_probe(struct platform_device *pldev)
 
 	gf_dev->probe_finish = 1;
 	gf_dev->is_sleep_mode = 0;
+	sprintf(gf_dev->fpname,"%s","NULL");
 	gf_debug(INFO_LOG, "%s probe finished\n", __func__);
 
 	FUNC_EXIT();
