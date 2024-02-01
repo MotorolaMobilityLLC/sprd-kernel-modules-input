@@ -40,14 +40,14 @@ static int ilitek_charger_notifier_callback(struct notifier_block *nb, unsigned 
 	struct power_supply *psy = NULL;
 	union power_supply_propval prop;
 
-	psy = power_supply_get_by_name("usb");
+	psy = power_supply_get_by_name("battery");
 	if (!psy) {
 		ILI_ERR("Couldn't get usbpsy\n");
 		return -EINVAL;
 	}
-	if (!strcmp(psy->desc->name, "usb")) {
+	if (!strcmp(psy->desc->name, "battery")) {
 		if (psy && val == POWER_SUPPLY_PROP_STATUS) {
-			ret = power_supply_get_property(psy, POWER_SUPPLY_PROP_PRESENT, &prop);
+			ret = power_supply_get_property(psy, POWER_SUPPLY_PROP_ONLINE, &prop);
 			if (ret < 0) {
 				ILI_ERR("Couldn't get POWER_SUPPLY_PROP_ONLINE rc=%d\n", ret);
 				return ret;
