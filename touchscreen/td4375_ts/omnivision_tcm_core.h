@@ -1,13 +1,7 @@
 /*
  * Omnivision TCM touchscreen driver
  *
- * Copyright (C) 2017-2018 Omnivision Incorporated. All rights reserved.
- *
- * Copyright (C) 2017-2018 Scott Lin <scott.lin@tw.omnivision.com>
- * Copyright (C) 2018-2019 Ian Su <ian.su@tw.omnivision.com>
- * Copyright (C) 2018-2019 Joey Zhou <joey.zhou@omnivision.com>
- * Copyright (C) 2018-2019 Yuehao Qiu <yuehao.qiu@omnivision.com>
- * Copyright (C) 2018-2019 Aaron Chen <aaron.chen@tw.omnivision.com>
+ * Copyright (C) 2017-2018 OmniVision Incorporated. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,17 +13,17 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
  *
- * INFORMATION CONTAINED IN THIS DOCUMENT IS PROVIDED "AS-IS," AND OMNIVISION
+ * INFORMATION CONTAINED IN THIS DOCUMENT IS PROVIDED "AS-IS," AND OmniVision
  * EXPRESSLY DISCLAIMS ALL EXPRESS AND IMPLIED WARRANTIES, INCLUDING ANY
  * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE,
  * AND ANY WARRANTIES OF NON-INFRINGEMENT OF ANY INTELLECTUAL PROPERTY RIGHTS.
- * IN NO EVENT SHALL OMNIVISION BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * IN NO EVENT SHALL OmniVision BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
  * SPECIAL, PUNITIVE, OR CONSEQUENTIAL DAMAGES ARISING OUT OF OR IN CONNECTION
  * WITH THE USE OF THE INFORMATION CONTAINED IN THIS DOCUMENT, HOWEVER CAUSED
  * AND BASED ON ANY THEORY OF LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
- * NEGLIGENCE OR OTHER TORTIOUS ACTION, AND EVEN IF OMNIVISION WAS ADVISED OF
+ * NEGLIGENCE OR OTHER TORTIOUS ACTION, AND EVEN IF OmniVision WAS ADVISED OF
  * THE POSSIBILITY OF SUCH DAMAGE. IF A TRIBUNAL OF COMPETENT JURISDICTION DOES
- * NOT PERMIT THE DISCLAIMER OF DIRECT DAMAGES OR ANY OTHER DAMAGES, OMNIVISION'
+ * NOT PERMIT THE DISCLAIMER OF DIRECT DAMAGES OR ANY OTHER DAMAGES, OmniVision'
  * TOTAL CUMULATIVE LIABILITY TO ANY PARTY SHALL NOT EXCEED ONE HUNDRED U.S.
  * DOLLARS.
  */
@@ -43,25 +37,58 @@
 #include <linux/input.h>
 #include <linux/delay.h>
 #include <linux/platform_device.h>
-#include <linux/slab.h>
-#include "omnivision_tcm.h"
-#ifdef CONFIG_FB
+#ifdef CONFIG_DRM
+#include <drm/drm_panel.h>
+#elif CONFIG_FB
 #include <linux/fb.h>
 #include <linux/notifier.h>
 #endif
-#include <linux/notifier.h>
+#include <linux/slab.h>
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 20, 0))
+	#include <linux/sched/signal.h>
+#endif
+
+#define I2C_MODULE_NAME "omniVision_tcm_i2c"
+#define SPI_MODULE_NAME "omnivision_tcm_spi"
+
+//#define CONFIG_OVT_CHARGER_DETECT
+struct ovt_tcm_board_data {
+	bool x_flip;
+	bool y_flip;
+	bool swap_axes;
+	int irq_gpio;
+	int irq_on_state;
+	int power_gpio;
+	int power_on_state;
+	int reset_gpio;
+	int reset_on_state;
+	int tpio_reset_gpio;
+	unsigned int spi_mode;
+	unsigned int power_delay_ms;
+	unsigned int reset_delay_ms;
+	unsigned int reset_active_ms;
+	unsigned int byte_delay_us;
+	unsigned int block_delay_us;
+	unsigned int ubl_i2c_addr;
+	unsigned int ubl_max_freq;
+	unsigned int ubl_byte_delay_us;
+	unsigned long irq_flags;
+	const char *pwr_reg_name;
+	const char *bus_reg_name;
+};
 
 #define OMNIVISION_TCM_ID_PRODUCT (1 << 0)
-#define OMNIVISION_TCM_ID_VERSION 0x0201
-#define OMNIVISION_TCM_ID_SUBVERSION 0
-#define OMNIVISION_TCM_DYNAMIC_PROC 0
+#define OMNIVISION_TCM_ID_VERSION 0x0300
+#define OMNIVISION_TCM_ID_SUBVERSION 2
 
 #define PLATFORM_DRIVER_NAME "omnivision_tcm"
 
 #define TOUCH_INPUT_NAME "omnivision_tcm_touch"
 #define TOUCH_INPUT_PHYS_PATH "omnivision_tcm/touch_input"
 
-#define WAKEUP_GESTURE (0)
+#define WAKEUP_GESTURE (1)
+
+#define SPEED_UP_RESUME 1
 
 /* The chunk size RD_CHUNK_SIZE/WR_CHUNK_SIZE will not apply in HDL sensors */
 #define RD_CHUNK_SIZE 256 /* read length limit in bytes, 0 = unlimited */
@@ -88,6 +115,9 @@
 
 #define HOST_DOWNLOAD_WAIT_MS 100
 #define HOST_DOWNLOAD_TIMEOUT_MS 5000
+#define LCD_NAME "lcd_td4375_dijin_4lane_mipi_fhd"
+#define LCD_NAME1 "lcd_td4160_tcl_120hz_mipi_hd"
+static char lcd_name[40];
 
 #define LOGx(func, dev, log, ...) \
 	func(dev, "%s info: " log, __func__, ##__VA_ARGS__)
@@ -179,6 +209,9 @@ enum module_type {
 	TCM_TESTING = 3,
 	TCM_RECOVERY = 4,
 	TCM_DIAGNOSTICS = 5,
+#ifdef CONFIG_OVT_CHARGER_DETECT
+	TCM_CHARGER_DETECT = 6,
+#endif
 	TCM_LAST,
 };
 
@@ -236,6 +269,9 @@ enum dynamic_config_id {
 	DC_GRIP_SUPPRESSION_ENABLED,
 	DC_ENABLE_THICK_GLOVE,
 	DC_ENABLE_GLOVE,
+	DC_ENABLE_FACE = 0x10,
+	DC_ENABLE_ROATE_HORIZONTAL_LEVEL = 0xc3,
+	DC_ENABLE_EAR_PHONE = 0xc9,
 };
 
 enum command {
@@ -293,6 +329,16 @@ enum status_code {
 	STATUS_INVALID = 0xff,
 };
 
+enum face_status {
+	FACE_FAR_FROM_1_2_3_CLOSE_WHEN_SCREEN_ON = 0x00,
+	FACE_CLOSE_1_SMALL_SIGNAL = 0x01,
+	FACE_CLOSE_2_ENOUGH_SIGNAL = 0x02,
+	FACE_CLOSE_3_ENOUGH_SIGNAL = 0x03,
+	FACE_CLOSE_FROM_1_2_3_CLOSE_WHEN_SCREEN_OFF = 0x04,
+	FACE_FAR_FROM_1_2_3_CLOSE_WHEN_SCREEN_OFF = 0x05,
+	FACE_STATUS_NONE = 0x0f,
+};
+
 enum report_type {
 	REPORT_IDENTIFY = 0x10,
 	REPORT_TOUCH = 0x11,
@@ -341,6 +387,7 @@ struct ovt_tcm_helper {
 	atomic_t task;
 	struct work_struct work;
 	struct workqueue_struct *workqueue;
+	struct completion *helper_completion;
 };
 
 struct ovt_tcm_watchdog {
@@ -467,6 +514,12 @@ struct ovt_tcm_hcd {
 	unsigned int rd_chunk_size;
 	unsigned int wr_chunk_size;
 	unsigned int app_status;
+
+	unsigned int func_ear_phone_connected_en;
+	unsigned int func_charger_connected_en;
+	unsigned int func_roate_horizontal_level_en;
+	unsigned int func_face_detect_en;
+
 	struct platform_device *pdev;
 	struct regulator *pwr_reg;
 	struct regulator *bus_reg;
@@ -478,11 +531,15 @@ struct ovt_tcm_hcd {
 	struct mutex io_ctrl_mutex;
 	struct mutex rw_ctrl_mutex;
 	struct mutex command_mutex;
+	struct mutex suspend_resume_mutex;
 	struct mutex identify_mutex;
 	struct delayed_work polling_work;
+#ifdef CONFIG_OVT_CHARGER_DETECT
+    struct workqueue_struct *workqueue;
+#endif
 	struct workqueue_struct *polling_workqueue;
 	struct task_struct *notifier_thread;
-#ifdef CONFIG_FB
+#if defined(CONFIG_DRM) || defined(CONFIG_FB)
 	struct notifier_block fb_notifier;
 #endif
 	struct ovt_tcm_buffer in;
@@ -497,12 +554,15 @@ struct ovt_tcm_hcd {
 	struct ovt_tcm_touch_info touch_info;
 	struct ovt_tcm_identification id_info;
 	struct ovt_tcm_helper helper;
+#if SPEED_UP_RESUME
+	struct work_struct     speed_up_work; 
+	struct workqueue_struct *speed_up_resume_workqueue;
+#endif
 	struct ovt_tcm_watchdog watchdog;
 	struct ovt_tcm_features features;
 	const struct ovt_tcm_hw_interface *hw_if;
-#ifdef CONFIG_INPUT_UNISOC_RVC
-	struct notifier_block touch_notifier;
-	int touch_status;
+#ifdef CONFIG_OVT_CHARGER_DETECT
+    void *charger_detect_data;
 #endif
 	int (*reset)(struct ovt_tcm_hcd *tcm_hcd);
 	int (*reset_n_reinit)(struct ovt_tcm_hcd *tcm_hcd, bool hw, bool update_wd);
@@ -579,20 +639,10 @@ struct ovt_tcm_hw_interface {
 	struct ovt_tcm_board_data *bdata;
 	const struct ovt_tcm_bus_io *bus_io;
 };
-int  device_module_init(void);
-void device_module_exit(void);
-int diag_module_init(void);
-void diag_module_exit(void);
-int recovery_module_init(void);
-void recovery_module_exit(void);
-int reflash_module_init(void);
-void reflash_module_exit(void);
+
 int ovt_tcm_bus_init(void);
+
 void ovt_tcm_bus_exit(void);
-int testing_module_init(void);
-void testing_module_exit(void);
-int zeroflash_module_init(void);
-void zeroflash_module_exit(void);
 
 int ovt_tcm_add_module(struct ovt_tcm_module_cb *mod_cb, bool insert);
 
@@ -602,6 +652,17 @@ int touch_reinit(struct ovt_tcm_hcd *tcm_hcd);
 int touch_early_suspend(struct ovt_tcm_hcd *tcm_hcd);
 int touch_suspend(struct ovt_tcm_hcd *tcm_hcd);
 int touch_resume(struct ovt_tcm_hcd *tcm_hcd);
+
+#ifdef CONFIG_DRM
+struct drm_panel *tcm_get_panel(void);
+#endif
+
+int device_module_init(void);
+int	reflash_module_init(void);
+int	testing_module_init(void);
+int	zeroflash_module_init(void);
+int	diag_module_init(void);
+int	recovery_module_init(void);
 
 static inline int ovt_tcm_rmi_read(struct ovt_tcm_hcd *tcm_hcd,
 		unsigned short addr, unsigned char *data, unsigned int length)
@@ -677,9 +738,7 @@ static inline int ovt_tcm_realloc_mem(struct ovt_tcm_hcd *tcm_hcd,
 			dev_err(tcm_hcd->pdev->dev.parent,
 					"%s: Failed to allocate memory\n",
 					__func__);
-			kfree(temp);
-			temp = NULL;
-			buffer->buf_size = 0;
+			buffer->buf = temp;
 			return -ENOMEM;
 		}
 
@@ -694,14 +753,11 @@ static inline int ovt_tcm_realloc_mem(struct ovt_tcm_hcd *tcm_hcd,
 					__func__);
 			kfree(temp);
 			kfree(buffer->buf);
-			temp = NULL;
-			buffer->buf = NULL;
 			buffer->buf_size = 0;
 			return retval;
 		}
 
 		kfree(temp);
-		temp = NULL;
 		buffer->buf_size = size;
 	}
 
@@ -712,7 +768,8 @@ static inline int ovt_tcm_alloc_mem(struct ovt_tcm_hcd *tcm_hcd,
 		struct ovt_tcm_buffer *buffer, unsigned int size)
 {
 	if (size > buffer->buf_size) {
-		kfree(buffer->buf);
+		unsigned char *temp;
+		temp = buffer->buf;
 		buffer->buf = kmalloc(size, GFP_KERNEL);
 		if (!(buffer->buf)) {
 			dev_err(tcm_hcd->pdev->dev.parent,
@@ -721,10 +778,10 @@ static inline int ovt_tcm_alloc_mem(struct ovt_tcm_hcd *tcm_hcd,
 			dev_err(tcm_hcd->pdev->dev.parent,
 					"%s: Allocation size = %d\n",
 					__func__, size);
-			buffer->buf_size = 0;
-			buffer->data_length = 0;
+			buffer->buf = temp;
 			return -ENOMEM;
 		}
+		kfree(temp);
 		buffer->buf_size = size;
 	}
 
@@ -752,5 +809,16 @@ static inline unsigned int ceil_div(unsigned int dividend, unsigned divisor)
 {
 	return (dividend + divisor - 1) / divisor;
 }
+
+extern int ovt_tcm_set_func_charger_connected_en_state(unsigned short value);
+extern int ovt_tcm_set_func_face_detect_en_state(unsigned short value);
+extern int ovt_tcm_set_func_ear_phone_connected_en_state(unsigned short value);
+extern int ovt_tcm_set_func_roate_horizontal_level_en_state(unsigned short value);
+
+#ifdef CONFIG_OVT_CHARGER_DETECT
+extern int ovt_start_charger_detect(struct ovt_tcm_hcd *tcm_hcd);
+extern int ovt_stop_charger_detect(struct ovt_tcm_hcd *tcm_hcd);
+int  charger_module_init(void);
+#endif
 
 #endif

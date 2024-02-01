@@ -1,13 +1,6 @@
 /*
- * Omnivision TCM touchscreen driver
- *
- * Copyright (C) 2017-2018 Omnivision Incorporated. All rights reserved.
- *
- * Copyright (C) 2017-2018 Scott Lin <scott.lin@tw.omnivision.com>
- * Copyright (C) 2018-2019 Ian Su <ian.su@tw.omnivision.com>
- * Copyright (C) 2018-2019 Joey Zhou <joey.zhou@omnivision.com>
- * Copyright (C) 2018-2019 Yuehao Qiu <yuehao.qiu@omnivision.com>
- * Copyright (C) 2018-2019 Aaron Chen <aaron.chen@tw.omnivision.com>
+ * omnivision TCM touchscreen driver
+ 
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,17 +12,17 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
  *
- * INFORMATION CONTAINED IN THIS DOCUMENT IS PROVIDED "AS-IS," AND OMNIVISION
+ * INFORMATION CONTAINED IN THIS DOCUMENT IS PROVIDED "AS-IS," AND omnivision
  * EXPRESSLY DISCLAIMS ALL EXPRESS AND IMPLIED WARRANTIES, INCLUDING ANY
  * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE,
  * AND ANY WARRANTIES OF NON-INFRINGEMENT OF ANY INTELLECTUAL PROPERTY RIGHTS.
- * IN NO EVENT SHALL OMNIVISION BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * IN NO EVENT SHALL omnivision BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
  * SPECIAL, PUNITIVE, OR CONSEQUENTIAL DAMAGES ARISING OUT OF OR IN CONNECTION
  * WITH THE USE OF THE INFORMATION CONTAINED IN THIS DOCUMENT, HOWEVER CAUSED
  * AND BASED ON ANY THEORY OF LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
- * NEGLIGENCE OR OTHER TORTIOUS ACTION, AND EVEN IF OMNIVISION WAS ADVISED OF
+ * NEGLIGENCE OR OTHER TORTIOUS ACTION, AND EVEN IF omnivision WAS ADVISED OF
  * THE POSSIBILITY OF SUCH DAMAGE. IF A TRIBUNAL OF COMPETENT JURISDICTION DOES
- * NOT PERMIT THE DISCLAIMER OF DIRECT DAMAGES OR ANY OTHER DAMAGES, OMNIVISION'
+ * NOT PERMIT THE DISCLAIMER OF DIRECT DAMAGES OR ANY OTHER DAMAGES, omnivision'
  * TOTAL CUMULATIVE LIABILITY TO ANY PARTY SHALL NOT EXCEED ONE HUNDRED U.S.
  * DOLLARS.
  */
@@ -49,7 +42,42 @@ static struct ovt_tcm_bus_io bus_io;
 static struct ovt_tcm_hw_interface hw_if;
 
 static struct platform_device *ovt_tcm_spi_device;
+#ifdef CONFIG_DRM
+static struct drm_panel *active_tcm_panel;
 
+struct drm_panel *tcm_get_panel(void)
+{
+	return active_tcm_panel;
+}
+
+EXPORT_SYMBOL(tcm_get_panel);
+
+static int ovt_tcm_check_dt(struct device_node *np)
+{
+	int i;
+	int count;
+	struct device_node *node;
+	struct drm_panel *panel;
+
+	printk("%s, enter\n", __func__);
+	count = of_count_phandle_with_args(np, "panel", NULL);
+	if (count <= 0)
+		return 0;
+
+	for (i = 0; i < count; i++) {
+		node = of_parse_phandle(np, "panel", i);
+		panel = of_drm_find_panel(node);
+		of_node_put(node);
+		if (!IS_ERR(panel)) {
+			printk("%s, active_tcm_panel find ok\n", __func__);
+			active_tcm_panel = panel;
+			return 0;
+		}
+	}
+	printk("%s, find panel error exit\n", __func__);
+	return PTR_ERR(panel);
+}
+#endif
 #ifdef CONFIG_OF
 static int parse_dt(struct device *dev, struct ovt_tcm_board_data *bdata)
 {
@@ -58,7 +86,11 @@ static int parse_dt(struct device *dev, struct ovt_tcm_board_data *bdata)
 	struct property *prop;
 	struct device_node *np = dev->of_node;
 	const char *name;
-
+#ifdef CONFIG_DRM
+	retval = ovt_tcm_check_dt(np);
+	if (retval == -EPROBE_DEFER)
+		return retval;
+#endif
 	prop = of_find_property(np, "omnivision,irq-gpio", NULL);
 	if (prop && prop->length) {
 		bdata->irq_gpio = of_get_named_gpio_flags(np,
@@ -294,10 +326,8 @@ static int ovt_tcm_spi_alloc_mem(struct ovt_tcm_hcd *tcm_hcd,
 	}
 
 	if (size > buf_size) {
-		if (buf_size){
+		if (buf_size)
 			kfree(buf);
-			buf = NULL;
-                }
 		buf = kmalloc(size, GFP_KERNEL);
 		if (!buf) {
 			LOGE(&spi->dev,
@@ -350,8 +380,10 @@ static int ovt_tcm_spi_rmi_read(struct ovt_tcm_hcd *tcm_hcd,
 		xfer[1].len = length;
 		xfer[1].tx_buf = &buf[2];
 		xfer[1].rx_buf = data;
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 15, 0))
 		if (bdata->block_delay_us)
-			xfer[1].delay.value = bdata->block_delay_us;
+			xfer[1].delay_usecs = bdata->block_delay_us;
+#endif
 		xfer[1].speed_hz = bdata->ubl_max_freq;
 		spi_message_add_tail(&xfer[1], &msg);
 	} else {
@@ -364,9 +396,11 @@ static int ovt_tcm_spi_rmi_read(struct ovt_tcm_hcd *tcm_hcd,
 				xfer[idx].tx_buf = &buf[2];
 				xfer[idx].rx_buf = &data[idx - 2];
 			}
-			xfer[idx].delay.value = bdata->ubl_byte_delay_us;
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 15, 0))
+			xfer[idx].delay_usecs = bdata->ubl_byte_delay_us;
 			if (bdata->block_delay_us && (idx == byte_count - 1))
-				xfer[idx].delay.value = bdata->block_delay_us;
+				xfer[idx].delay_usecs = bdata->block_delay_us;
+#endif
 			xfer[idx].speed_hz = bdata->ubl_max_freq;
 			spi_message_add_tail(&xfer[idx], &msg);
 		}
@@ -400,8 +434,9 @@ static int ovt_tcm_spi_rmi_write(struct ovt_tcm_hcd *tcm_hcd,
 	unsigned int byte_count;
 	struct spi_message msg;
 	struct spi_device *spi = to_spi_device(tcm_hcd->pdev->dev.parent);
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 15, 0))
 	const struct ovt_tcm_board_data *bdata = tcm_hcd->hw_if->bdata;
-
+#endif
 	mutex_lock(&tcm_hcd->io_ctrl_mutex);
 
 	spi_message_init(&msg);
@@ -430,8 +465,10 @@ static int ovt_tcm_spi_rmi_write(struct ovt_tcm_hcd *tcm_hcd,
 
 	xfer[0].len = byte_count;
 	xfer[0].tx_buf = buf;
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 15, 0))
 	if (bdata->block_delay_us)
-		xfer[0].delay.value = bdata->block_delay_us;
+		xfer[0].delay_usecs = bdata->block_delay_us;
+#endif
 	spi_message_add_tail(&xfer[0], &msg);
 
 	mode = spi->mode;
@@ -482,8 +519,10 @@ static int ovt_tcm_spi_read(struct ovt_tcm_hcd *tcm_hcd, unsigned char *data,
 		xfer[0].len = length;
 		xfer[0].tx_buf = buf;
 		xfer[0].rx_buf = data;
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 15, 0))
 		if (bdata->block_delay_us)
-			xfer[0].delay.value = bdata->block_delay_us;
+			xfer[0].delay_usecs = bdata->block_delay_us;
+#endif
 		spi_message_add_tail(&xfer[0], &msg);
 	} else {
 		buf[0] = 0xff;
@@ -491,9 +530,11 @@ static int ovt_tcm_spi_read(struct ovt_tcm_hcd *tcm_hcd, unsigned char *data,
 			xfer[idx].len = 1;
 			xfer[idx].tx_buf = buf;
 			xfer[idx].rx_buf = &data[idx];
-			xfer[idx].delay.value = bdata->byte_delay_us;
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 15, 0))
+			xfer[idx].delay_usecs = bdata->byte_delay_us;
 			if (bdata->block_delay_us && (idx == length - 1))
-				xfer[idx].delay.value = bdata->block_delay_us;
+				xfer[idx].delay_usecs = bdata->block_delay_us;
+#endif
 			spi_message_add_tail(&xfer[idx], &msg);
 		}
 	}
@@ -527,9 +568,9 @@ static int ovt_tcm_spi_write(struct ovt_tcm_hcd *tcm_hcd, unsigned char *data,
 	spi_message_init(&msg);
 
 	if (bdata->byte_delay_us == 0)
-		retval = ovt_tcm_spi_alloc_mem(tcm_hcd, 1, 0);
+		retval = ovt_tcm_spi_alloc_mem(tcm_hcd, 1, length);
 	else
-		retval = ovt_tcm_spi_alloc_mem(tcm_hcd, length, 0);
+		retval = ovt_tcm_spi_alloc_mem(tcm_hcd, length, 1);
 	if (retval < 0) {
 		LOGE(&spi->dev,
 				"Failed to allocate memory\n");
@@ -539,16 +580,22 @@ static int ovt_tcm_spi_write(struct ovt_tcm_hcd *tcm_hcd, unsigned char *data,
 	if (bdata->byte_delay_us == 0) {
 		xfer[0].len = length;
 		xfer[0].tx_buf = data;
+		xfer[0].rx_buf = buf;
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 15, 0))
 		if (bdata->block_delay_us)
-			xfer[0].delay.value = bdata->block_delay_us;
+			xfer[0].delay_usecs = bdata->block_delay_us;
+#endif
 		spi_message_add_tail(&xfer[0], &msg);
 	} else {
 		for (idx = 0; idx < length; idx++) {
 			xfer[idx].len = 1;
 			xfer[idx].tx_buf = &data[idx];
-			xfer[idx].delay.value = bdata->byte_delay_us;
+			xfer[idx].rx_buf = &buf[idx];
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 15, 0))
+			xfer[idx].delay_usecs = bdata->byte_delay_us;
 			if (bdata->block_delay_us && (idx == length - 1))
-				xfer[idx].delay.value = bdata->block_delay_us;
+				xfer[idx].delay_usecs = bdata->block_delay_us;
+#endif
 			spi_message_add_tail(&xfer[idx], &msg);
 		}
 	}
@@ -571,7 +618,6 @@ exit:
 static int ovt_tcm_spi_probe(struct spi_device *spi)
 {
 	int retval;
-	LOGE(&spi->dev,">>>>>>>>>>>%s:probe start<<<<<<<<<<<\n", __func__);
 
 	if (spi->master->flags & SPI_MASTER_HALF_DUPLEX) {
 		LOGE(&spi->dev,
@@ -611,8 +657,6 @@ static int ovt_tcm_spi_probe(struct spi_device *spi)
 	case 3:
 		spi->mode = SPI_MODE_3;
 		break;
-	default:
-		break;
 	}
 
 	bus_io.type = BUS_SPI;
@@ -641,7 +685,6 @@ static int ovt_tcm_spi_probe(struct spi_device *spi)
 				"Failed to add platform device\n");
 		return retval;
 	}
-	LOGE(&spi->dev,">>>>>>>>>>>%s:probe end<<<<<<<<<<<\n", __func__);
 
 	return 0;
 }
@@ -678,7 +721,6 @@ static struct spi_driver ovt_tcm_spi_driver = {
 		.name = SPI_MODULE_NAME,
 		.owner = THIS_MODULE,
 		.of_match_table = ovt_tcm_of_match_table,
-		.probe_type = PROBE_PREFER_ASYNCHRONOUS,
 	},
 	.probe = ovt_tcm_spi_probe,
 	.remove = ovt_tcm_spi_remove,
@@ -694,15 +736,15 @@ EXPORT_SYMBOL(ovt_tcm_bus_init);
 void ovt_tcm_bus_exit(void)
 {
 	kfree(buf);
-	buf = NULL;
+
 	kfree(xfer);
-	xfer = NULL;
+
 	spi_unregister_driver(&ovt_tcm_spi_driver);
 
 	return;
 }
 EXPORT_SYMBOL(ovt_tcm_bus_exit);
 
-MODULE_AUTHOR("Omnivision, Inc.");
-MODULE_DESCRIPTION("Omnivision TCM SPI Bus Module");
+MODULE_AUTHOR("omnivision, Inc.");
+MODULE_DESCRIPTION("omnivision TCM SPI Bus Module");
 MODULE_LICENSE("GPL v2");

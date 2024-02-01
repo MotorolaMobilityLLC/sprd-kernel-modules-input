@@ -1,13 +1,8 @@
 /*
- * Omnivision TCM touchscreen driver
+ * omnivision TCM touchscreen driver
  *
- * Copyright (C) 2017-2018 Omnivision Incorporated. All rights reserved.
- *
- * Copyright (C) 2017-2018 Scott Lin <scott.lin@tw.omnivision.com>
- * Copyright (C) 2018-2019 Ian Su <ian.su@tw.omnivision.com>
- * Copyright (C) 2018-2019 Joey Zhou <joey.zhou@omnivision.com>
- * Copyright (C) 2018-2019 Yuehao Qiu <yuehao.qiu@omnivision.com>
- * Copyright (C) 2018-2019 Aaron Chen <aaron.chen@tw.omnivision.com>
+ * Copyright (C) 2017-2018 omnivision Incorporated. All rights reserved.
+ 
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,17 +14,17 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
  *
- * INFORMATION CONTAINED IN THIS DOCUMENT IS PROVIDED "AS-IS," AND OMNIVISION
+ * INFORMATION CONTAINED IN THIS DOCUMENT IS PROVIDED "AS-IS," AND omnivision
  * EXPRESSLY DISCLAIMS ALL EXPRESS AND IMPLIED WARRANTIES, INCLUDING ANY
  * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE,
  * AND ANY WARRANTIES OF NON-INFRINGEMENT OF ANY INTELLECTUAL PROPERTY RIGHTS.
- * IN NO EVENT SHALL OMNIVISION BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * IN NO EVENT SHALL omnivision BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
  * SPECIAL, PUNITIVE, OR CONSEQUENTIAL DAMAGES ARISING OUT OF OR IN CONNECTION
  * WITH THE USE OF THE INFORMATION CONTAINED IN THIS DOCUMENT, HOWEVER CAUSED
  * AND BASED ON ANY THEORY OF LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
- * NEGLIGENCE OR OTHER TORTIOUS ACTION, AND EVEN IF OMNIVISION WAS ADVISED OF
+ * NEGLIGENCE OR OTHER TORTIOUS ACTION, AND EVEN IF omnivision WAS ADVISED OF
  * THE POSSIBILITY OF SUCH DAMAGE. IF A TRIBUNAL OF COMPETENT JURISDICTION DOES
- * NOT PERMIT THE DISCLAIMER OF DIRECT DAMAGES OR ANY OTHER DAMAGES, OMNIVISION'
+ * NOT PERMIT THE DISCLAIMER OF DIRECT DAMAGES OR ANY OTHER DAMAGES, omnivision'
  * TOTAL CUMULATIVE LIABILITY TO ANY PARTY SHALL NOT EXCEED ONE HUNDRED U.S.
  * DOLLARS.
  */
@@ -97,6 +92,7 @@ static void device_capture_touch_report(unsigned int count)
 
 	switch (id) {
 	case REPORT_TOUCH:
+		device_hcd->report.data_length = 0;
 		if (count >= 4) {
 			remaining_size = le2_to_uint(&data[2]);
 		} else {
@@ -237,13 +233,16 @@ static int device_capture_touch_report_config(unsigned int count)
 
 	return 0;
 }
-
-// #ifdef HAVE_UNLOCKED_IOCTL
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0))
 static long device_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
-// // #else
-// static int device_ioctl(struct inode *inp, struct file *filp, unsigned int cmd,
-// 		unsigned long arg)
-// #endif
+#else
+#ifdef HAVE_UNLOCKED_IOCTL
+static long device_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
+#else
+static int device_ioctl(struct inode *inp, struct file *filp, unsigned int cmd,
+		unsigned long arg)
+#endif
+#endif
 {
 	int retval;
 	struct ovt_tcm_hcd *tcm_hcd = device_hcd->tcm_hcd;
@@ -258,7 +257,7 @@ static long device_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		break;
 	case DEVICE_IOC_IRQ:
 		if (arg == 0)
-			retval = tcm_hcd->enable_irq(tcm_hcd, false, false);
+			retval = tcm_hcd->enable_irq(tcm_hcd, false, true);
 		else if (arg == 1)
 			retval = tcm_hcd->enable_irq(tcm_hcd, true, NULL);
 		break;
@@ -524,14 +523,18 @@ static int device_create_class(void)
 
 static const struct file_operations device_fops = {
 	.owner = THIS_MODULE,
-// #ifdef HAVE_UNLOCKED_IOCTL
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0))
 	.unlocked_ioctl = device_ioctl,
-// #ifdef HAVE_COMPAT_IOCTL
+#ifdef HAVE_COMPAT_IOCTL
 	.compat_ioctl = device_ioctl,
-// #endif
-// #else
-// 	.ioctl = device_ioctl,
-// #endif
+#endif
+#else
+#ifdef HAVE_UNLOCKED_IOCTL
+	.unlocked_ioctl = device_ioctl,
+#else
+	.ioctl = device_ioctl,
+#endif
+#endif
 	.llseek = device_llseek,
 	.read = device_read,
 	.write = device_write,
@@ -712,7 +715,5 @@ void device_module_exit(void)
 
 	return;
 }
-
-MODULE_AUTHOR("Omnivision, Inc.");
-MODULE_DESCRIPTION("Omnivision TCM Device Module");
-MODULE_LICENSE("GPL v2");
+EXPORT_SYMBOL(device_module_init);
+EXPORT_SYMBOL(device_module_exit);

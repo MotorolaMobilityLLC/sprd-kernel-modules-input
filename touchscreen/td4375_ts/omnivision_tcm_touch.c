@@ -1,13 +1,7 @@
 /*
- * Omnivision TCM touchscreen driver
+ * omnivision TCM touchscreen driver
  *
- * Copyright (C) 2017-2018 Omnivision Incorporated. All rights reserved.
- *
- * Copyright (C) 2017-2018 Scott Lin <scott.lin@tw.omnivision.com>
- * Copyright (C) 2018-2019 Ian Su <ian.su@tw.omnivision.com>
- * Copyright (C) 2018-2019 Joey Zhou <joey.zhou@omnivision.com>
- * Copyright (C) 2018-2019 Yuehao Qiu <yuehao.qiu@omnivision.com>
- * Copyright (C) 2018-2019 Aaron Chen <aaron.chen@tw.omnivision.com>
+ * Copyright (C) 2017-2018 omnivision Incorporated. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,17 +13,17 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
  *
- * INFORMATION CONTAINED IN THIS DOCUMENT IS PROVIDED "AS-IS," AND OMNIVISION
+ * INFORMATION CONTAINED IN THIS DOCUMENT IS PROVIDED "AS-IS," AND omnivision
  * EXPRESSLY DISCLAIMS ALL EXPRESS AND IMPLIED WARRANTIES, INCLUDING ANY
  * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE,
  * AND ANY WARRANTIES OF NON-INFRINGEMENT OF ANY INTELLECTUAL PROPERTY RIGHTS.
- * IN NO EVENT SHALL OMNIVISION BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * IN NO EVENT SHALL omnivision BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
  * SPECIAL, PUNITIVE, OR CONSEQUENTIAL DAMAGES ARISING OUT OF OR IN CONNECTION
  * WITH THE USE OF THE INFORMATION CONTAINED IN THIS DOCUMENT, HOWEVER CAUSED
  * AND BASED ON ANY THEORY OF LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
- * NEGLIGENCE OR OTHER TORTIOUS ACTION, AND EVEN IF OMNIVISION WAS ADVISED OF
+ * NEGLIGENCE OR OTHER TORTIOUS ACTION, AND EVEN IF omnivision WAS ADVISED OF
  * THE POSSIBILITY OF SUCH DAMAGE. IF A TRIBUNAL OF COMPETENT JURISDICTION DOES
- * NOT PERMIT THE DISCLAIMER OF DIRECT DAMAGES OR ANY OTHER DAMAGES, OMNIVISION'
+ * NOT PERMIT THE DISCLAIMER OF DIRECT DAMAGES OR ANY OTHER DAMAGES, omnivision'
  * TOTAL CUMULATIVE LIABILITY TO ANY PARTY SHALL NOT EXCEED ONE HUNDRED U.S.
  * DOLLARS.
  */
@@ -40,9 +34,17 @@
 
 #define TYPE_B_PROTOCOL
 
-#define USE_DEFAULT_TOUCH_REPORT_CONFIG
+//#define REPORT_Z_MAJOR_VALUE
+#define MAX_Z_VALUE 1000
+#define MAX_MAJOR_VALUE 255
+
+//#define USE_DEFAULT_TOUCH_REPORT_CONFIG
 
 #define TOUCH_REPORT_CONFIG_SIZE 128
+
+#define SUPPORT_FACE_DETECT 1
+
+#define SUPPORT_KNUCKLE_DATA_REPORT 0
 
 enum touch_status {
 	LIFT = 0,
@@ -90,6 +92,10 @@ enum touch_report_code {
 	TOUCH_TUNING_GAUSSIAN_WIDTHS = 0x80,
 	TOUCH_TUNING_SMALL_OBJECT_PARAMS,
 	TOUCH_TUNING_0D_BUTTONS_VARIANCE,
+#if SUPPORT_KNUCKLE_DATA_REPORT
+	TOUCH_KNUCKLE_DATA = 0xca,
+#endif
+  TOUCH_REPORT_PALM_DETECTED = 200,
 };
 
 struct object_data {
@@ -109,6 +115,9 @@ struct input_params {
 	unsigned int max_objects;
 };
 
+#if SUPPORT_KNUCKLE_DATA_REPORT
+#define KNUCKLE_DATA_SIZE 102
+#endif
 struct touch_data {
 	struct object_data *object_data;
 	unsigned int timestamp;
@@ -126,12 +135,17 @@ struct touch_data {
 	unsigned int fd_data;
 	unsigned int force_data;
 	unsigned int fingerprint_area_meet;
+#if SUPPORT_KNUCKLE_DATA_REPORT
+	unsigned char knuckle_data[KNUCKLE_DATA_SIZE];
+#endif
+	unsigned int palm_status;
 };
 
 struct touch_hcd {
 	bool irq_wake;
 	bool init_touch_ok;
 	bool suspend_touch;
+	bool suspend_touch_finger;
 	unsigned char *prev_status;
 	unsigned int max_x;
 	unsigned int max_y;
@@ -146,7 +160,9 @@ struct touch_hcd {
 };
 
 static struct touch_hcd *touch_hcd;
-
+#if SUPPORT_FACE_DETECT
+static int ovt_check_face_state(int current_face_state);
+#endif
 /**
  * touch_free_objects() - Free all touch objects
  *
@@ -166,6 +182,10 @@ static void touch_free_objects(void)
 #ifdef TYPE_B_PROTOCOL
 	for (idx = 0; idx < touch_hcd->max_objects; idx++) {
 		input_mt_slot(touch_hcd->input_dev, idx);
+#ifdef REPORT_Z_MAJOR_VALUE
+		input_report_abs(touch_hcd->input_dev, ABS_MT_PRESSURE, 0);
+		input_report_abs(touch_hcd->input_dev, ABS_MT_TOUCH_MAJOR, 0);
+#endif
 		input_mt_report_slot_state(touch_hcd->input_dev,
 				MT_TOOL_FINGER, 0);
 	}
@@ -201,7 +221,7 @@ static int touch_get_report_data(unsigned int offset,
 	unsigned int data_bits;
 	unsigned int available_bits;
 	unsigned int remaining_bits;
-	unsigned char *touch_reportdata;
+	unsigned char *touch_report;
 	struct ovt_tcm_hcd *tcm_hcd = touch_hcd->tcm_hcd;
 
 	if (bits == 0 || bits > 32) {
@@ -215,7 +235,7 @@ static int touch_get_report_data(unsigned int offset,
 		return 0;
 	}
 
-	touch_reportdata = tcm_hcd->report.buffer.buf;
+	touch_report = tcm_hcd->report.buffer.buf;
 
 	output_data = 0;
 	remaining_bits = bits;
@@ -224,7 +244,7 @@ static int touch_get_report_data(unsigned int offset,
 	byte_offset = offset / 8;
 
 	while (remaining_bits) {
-		byte_data = touch_reportdata[byte_offset];
+		byte_data = touch_report[byte_offset];
 		byte_data >>= bit_offset;
 
 		available_bits = 8 - bit_offset;
@@ -288,14 +308,10 @@ static int touch_parse_report(void)
 	num_of_active_objects = false;
 
 	idx = 0;
-	obj = 0;
-	next = 0;
 	offset = 0;
 	objects = 0;
 	active_objects = 0;
 	active_only = false;
-	next = 0;
-	obj = 0;
 
 	while (idx < config_size) {
 		code = config_data[idx++];
@@ -449,6 +465,17 @@ static int touch_parse_report(void)
 				return retval;
 			}
 			touch_data->force_data = data;
+			offset += bits;
+			break;
+		case TOUCH_REPORT_PALM_DETECTED:
+			bits = config_data[idx++];
+			retval = touch_get_report_data(offset, bits, &data);
+			if (retval < 0) {
+				LOGE(tcm_hcd->pdev->dev.parent,
+						"Failed to get palm status\n");
+				return retval;
+			}
+			touch_data->palm_status = data;
 			offset += bits;
 			break;
 		case TOUCH_FINGERPRINT_AREA_MEET:
@@ -623,6 +650,19 @@ static int touch_parse_report(void)
 			bits = config_data[idx++];
 			offset += bits;
 			break;
+#if SUPPORT_KNUCKLE_DATA_REPORT
+		case TOUCH_KNUCKLE_DATA:
+			bits = config_data[idx++];
+			bits = bits | (config_data[idx++] << 8);
+			retval = secure_memcpy(&touch_data->knuckle_data[0], KNUCKLE_DATA_SIZE, &tcm_hcd->report.buffer.buf[offset/8], bits / 8, bits / 8);
+			if (retval < 0) {
+				LOGE(tcm_hcd->pdev->dev.parent,
+						"Failed to copy knuckle data\n");
+				return retval;
+			}
+			offset += bits;
+			break;
+#endif
 		default:
 			bits = config_data[idx++];
 			offset += bits;
@@ -646,6 +686,10 @@ static void touch_report(void)
 	unsigned int idx;
 	unsigned int x;
 	unsigned int y;
+#ifdef REPORT_Z_MAJOR_VALUE
+	unsigned int z;
+	unsigned int major;
+#endif
 	unsigned int temp;
 	unsigned int status;
 	unsigned int touch_count;
@@ -654,22 +698,14 @@ static void touch_report(void)
 	struct ovt_tcm_hcd *tcm_hcd = touch_hcd->tcm_hcd;
 	const struct ovt_tcm_board_data *bdata = tcm_hcd->hw_if->bdata;
 
-	if (!touch_hcd->init_touch_ok) {
-		LOGE(tcm_hcd->pdev->dev.parent,
-				"touch didn't init\n");
+	if (!touch_hcd->init_touch_ok)
 		return;
-	}
-	if (touch_hcd->input_dev == NULL) {
-		LOGE(tcm_hcd->pdev->dev.parent,
-				"touch input dev didn't init\n");
-		return;
-	}
 
-	if (touch_hcd->suspend_touch) {
-		LOGE(tcm_hcd->pdev->dev.parent,
-				"touch didn't resume\n");
+	if (touch_hcd->input_dev == NULL)
 		return;
-	}
+
+	if (touch_hcd->suspend_touch)
+		return;
 
 	mutex_lock(&touch_hcd->report_mutex);
 
@@ -683,6 +719,11 @@ static void touch_report(void)
 	touch_data = &touch_hcd->touch_data;
 	object_data = touch_hcd->touch_data.object_data;
 
+#if SUPPORT_FACE_DETECT
+	ovt_check_face_state(touch_data->fd_data);
+	touch_data->fd_data = FACE_STATUS_NONE;
+#endif
+
 #if WAKEUP_GESTURE
 	if (touch_data->gesture_id == GESTURE_DOUBLE_TAP &&
 			 tcm_hcd->in_suspend &&
@@ -695,7 +736,7 @@ static void touch_report(void)
 	}
 #endif
 
-	if (tcm_hcd->in_suspend)
+	if ((tcm_hcd->in_suspend) || (touch_hcd->suspend_touch_finger))
 		goto exit;
 
 	touch_count = 0;
@@ -719,6 +760,10 @@ static void touch_report(void)
 		case GLOVED_FINGER:
 			x = object_data[idx].x_pos;
 			y = object_data[idx].y_pos;
+#ifdef REPORT_Z_MAJOR_VALUE
+			z = object_data[idx].z;
+			major = (object_data[idx].x_width + object_data[idx].y_width) / 2;
+#endif
 			if (bdata->swap_axes) {
 				temp = x;
 				x = y;
@@ -741,12 +786,26 @@ static void touch_report(void)
 					ABS_MT_POSITION_X, x);
 			input_report_abs(touch_hcd->input_dev,
 					ABS_MT_POSITION_Y, y);
+#ifdef REPORT_Z_MAJOR_VALUE
+			input_report_abs(touch_hcd->input_dev,
+					ABS_MT_PRESSURE, z);
+			input_report_abs(touch_hcd->input_dev,
+					ABS_MT_TOUCH_MAJOR, major);
+#endif
+
 #ifndef TYPE_B_PROTOCOL
 			input_mt_sync(touch_hcd->input_dev);
 #endif
+
+#ifdef REPORT_Z_MAJOR_VALUE
+			LOGD(tcm_hcd->pdev->dev.parent,
+					"Finger %d: x = %d, y = %d z = %d, x_width:%d, y_width:%d\n",
+					idx, x, y, z, object_data[idx].x_width, object_data[idx].y_width);
+#else
 			LOGD(tcm_hcd->pdev->dev.parent,
 					"Finger %d: x = %d, y = %d\n",
 					idx, x, y);
+#endif
 			touch_count++;
 			break;
 		default:
@@ -789,6 +848,13 @@ static int touch_set_input_params(void)
 			ABS_MT_POSITION_X, 0, touch_hcd->max_x, 0, 0);
 	input_set_abs_params(touch_hcd->input_dev,
 			ABS_MT_POSITION_Y, 0, touch_hcd->max_y, 0, 0);
+
+#ifdef REPORT_Z_MAJOR_VALUE
+	input_set_abs_params(touch_hcd->input_dev,
+			ABS_MT_PRESSURE, 0, MAX_Z_VALUE, 0, 0);
+	input_set_abs_params(touch_hcd->input_dev,
+			ABS_MT_TOUCH_MAJOR, 0, MAX_MAJOR_VALUE, 0, 0);
+#endif
 
 	input_mt_init_slots(touch_hcd->input_dev, touch_hcd->max_objects,
 			INPUT_MT_DIRECT);
@@ -921,7 +987,26 @@ static int touch_set_input_dev(void)
 
 	return 0;
 }
+/*
 
+*/
+#if SUPPORT_FACE_DETECT
+static int ovt_check_face_state(int current_face_state)
+{
+	//static int pre_face_state = FACE_STATUS_NONE;
+	if ((current_face_state == FACE_FAR_FROM_1_2_3_CLOSE_WHEN_SCREEN_ON) ||
+		(current_face_state == FACE_FAR_FROM_1_2_3_CLOSE_WHEN_SCREEN_OFF)) {
+		//report far event
+		printk("tcm check face far\n");
+	} else if ((current_face_state == FACE_CLOSE_1_SMALL_SIGNAL) ||
+				(current_face_state == FACE_CLOSE_FROM_1_2_3_CLOSE_WHEN_SCREEN_OFF)) {
+
+		//report close event
+		printk("tcm check face close\n");
+	}
+	return 0;
+}
+#endif
 /**
  * touch_set_report_config() - Set touch report configuration
  *
@@ -966,15 +1051,32 @@ static int touch_set_report_config(void)
 	touch_hcd->out.buf[idx++] = TOUCH_GESTURE_ID;
 	touch_hcd->out.buf[idx++] = 8;
 #endif
+#if SUPPORT_FACE_DETECT
+	touch_hcd->out.buf[idx++] = TOUCH_FACE_DETECT;
+	touch_hcd->out.buf[idx++] = 8;
+#endif
+#if SUPPORT_KNUCKLE_DATA_REPORT
+	touch_hcd->out.buf[idx++] = TOUCH_KNUCKLE_DATA;
+	touch_hcd->out.buf[idx++] = (KNUCKLE_DATA_SIZE * 8) & 0xff;
+	touch_hcd->out.buf[idx++] = (KNUCKLE_DATA_SIZE * 8) >> 8;
+#endif
+	touch_hcd->out.buf[idx++] = TOUCH_REPORT_PALM_DETECTED;
+	touch_hcd->out.buf[idx++] = 8;
 	touch_hcd->out.buf[idx++] = TOUCH_FOREACH_ACTIVE_OBJECT;
 	touch_hcd->out.buf[idx++] = TOUCH_OBJECT_N_INDEX;
 	touch_hcd->out.buf[idx++] = 4;
 	touch_hcd->out.buf[idx++] = TOUCH_OBJECT_N_CLASSIFICATION;
 	touch_hcd->out.buf[idx++] = 4;
 	touch_hcd->out.buf[idx++] = TOUCH_OBJECT_N_X_POSITION;
-	touch_hcd->out.buf[idx++] = 12;
+	touch_hcd->out.buf[idx++] = 16;
 	touch_hcd->out.buf[idx++] = TOUCH_OBJECT_N_Y_POSITION;
-	touch_hcd->out.buf[idx++] = 12;
+	touch_hcd->out.buf[idx++] = 16;
+	touch_hcd->out.buf[idx++] = TOUCH_OBJECT_N_X_WIDTH;
+	touch_hcd->out.buf[idx++] = 16;
+	touch_hcd->out.buf[idx++] = TOUCH_OBJECT_N_Y_WIDTH;
+	touch_hcd->out.buf[idx++] = 16;
+	touch_hcd->out.buf[idx++] = TOUCH_OBJECT_N_Z;
+	touch_hcd->out.buf[idx++] = 16;	
 	touch_hcd->out.buf[idx++] = TOUCH_FOREACH_END;
 	touch_hcd->out.buf[idx++] = TOUCH_END;
 
@@ -1200,11 +1302,13 @@ int touch_reinit(struct ovt_tcm_hcd *tcm_hcd)
 		return 0;
 	}
 
-	retval = tcm_hcd->identify(tcm_hcd, false);
-	if (retval < 0) {
-		LOGE(tcm_hcd->pdev->dev.parent,
+	if (!tcm_hcd->in_hdl_mode) {
+		retval = tcm_hcd->identify(tcm_hcd, false);
+		if (retval < 0) {
+			LOGE(tcm_hcd->pdev->dev.parent,
 				"Failed to do identification\n");
-		return retval;
+			return retval;
+		}
 	}
 
 	retval = touch_set_input_reporting();
@@ -1221,6 +1325,7 @@ int touch_early_suspend(struct ovt_tcm_hcd *tcm_hcd)
 	if (!touch_hcd)
 		return 0;
 
+	touch_hcd->suspend_touch_finger = true;
 	if (tcm_hcd->wakeup_gesture_enabled)
 		touch_hcd->suspend_touch = false;
 	else
@@ -1238,6 +1343,7 @@ int touch_suspend(struct ovt_tcm_hcd *tcm_hcd)
 	if (!touch_hcd)
 		return 0;
 
+	touch_hcd->suspend_touch_finger = true;
 	touch_hcd->suspend_touch = true;
 
 	touch_free_objects();
@@ -1271,6 +1377,7 @@ int touch_resume(struct ovt_tcm_hcd *tcm_hcd)
 		return 0;
 
 	touch_hcd->suspend_touch = false;
+	touch_hcd->suspend_touch_finger = false;
 
 	if (tcm_hcd->wakeup_gesture_enabled) {
 		if (touch_hcd->irq_wake) {

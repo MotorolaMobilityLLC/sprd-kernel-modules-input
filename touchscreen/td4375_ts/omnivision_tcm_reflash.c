@@ -1,13 +1,7 @@
 /*
- * Omnivision TCM touchscreen driver
+ * omnivision TCM touchscreen driver
  *
- * Copyright (C) 2017-2018 Omnivision Incorporated. All rights reserved.
- *
- * Copyright (C) 2017-2018 Scott Lin <scott.lin@tw.omnivision.com>
- * Copyright (C) 2018-2019 Ian Su <ian.su@tw.omnivision.com>
- * Copyright (C) 2018-2019 Joey Zhou <joey.zhou@omnivision.com>
- * Copyright (C) 2018-2019 Yuehao Qiu <yuehao.qiu@omnivision.com>
- * Copyright (C) 2018-2019 Aaron Chen <aaron.chen@tw.omnivision.com>
+ * Copyright (C) 2017-2018 omnivision Incorporated. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,17 +13,17 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
  *
- * INFORMATION CONTAINED IN THIS DOCUMENT IS PROVIDED "AS-IS," AND OMNIVISION
+ * INFORMATION CONTAINED IN THIS DOCUMENT IS PROVIDED "AS-IS," AND omnivision
  * EXPRESSLY DISCLAIMS ALL EXPRESS AND IMPLIED WARRANTIES, INCLUDING ANY
  * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE,
  * AND ANY WARRANTIES OF NON-INFRINGEMENT OF ANY INTELLECTUAL PROPERTY RIGHTS.
- * IN NO EVENT SHALL OMNIVISION BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * IN NO EVENT SHALL omnivision BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
  * SPECIAL, PUNITIVE, OR CONSEQUENTIAL DAMAGES ARISING OUT OF OR IN CONNECTION
  * WITH THE USE OF THE INFORMATION CONTAINED IN THIS DOCUMENT, HOWEVER CAUSED
  * AND BASED ON ANY THEORY OF LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
- * NEGLIGENCE OR OTHER TORTIOUS ACTION, AND EVEN IF OMNIVISION WAS ADVISED OF
+ * NEGLIGENCE OR OTHER TORTIOUS ACTION, AND EVEN IF omnivision WAS ADVISED OF
  * THE POSSIBILITY OF SUCH DAMAGE. IF A TRIBUNAL OF COMPETENT JURISDICTION DOES
- * NOT PERMIT THE DISCLAIMER OF DIRECT DAMAGES OR ANY OTHER DAMAGES, OMNIVISION'
+ * NOT PERMIT THE DISCLAIMER OF DIRECT DAMAGES OR ANY OTHER DAMAGES, omnivision'
  * TOTAL CUMULATIVE LIABILITY TO ANY PARTY SHALL NOT EXCEED ONE HUNDRED U.S.
  * DOLLARS.
  */
@@ -37,9 +31,9 @@
 #include <linux/crc32.h>
 #include <linux/firmware.h>
 #include "omnivision_tcm_core.h"
-/*
+
 #define STARTUP_REFLASH
-*/
+
 #define FORCE_REFLASH false
 
 #define ENABLE_SYS_REFLASH true
@@ -48,9 +42,9 @@
 
 #define CUSTOM_DIR_NAME "custom"
 
-#define FW_IMAGE_NAME "hdl_firmware_4lane.img"
+#define FW_IMAGE_NAME "omnivision/reflash_firmware.img"
 
-#define FW_IMAGE_NAME_MANUAL "hdl_firmware_4lane.img"
+#define FW_IMAGE_NAME_MANUAL "omnivision/reflash_firmware_manual.img"
 
 #define BOOT_CONFIG_ID "BOOT_CONFIG"
 
@@ -857,32 +851,32 @@ static int reflash_parse_fw_image(void)
 static int reflash_get_fw_image(void)
 {
 	int retval;
+	int retry_cnt = 10;
 	struct ovt_tcm_hcd *tcm_hcd = reflash_hcd->tcm_hcd;
 
 	if (reflash_hcd->image == NULL) {
-		if (reflash_hcd->reflash_by_manual == false) {
 
-			retval = request_firmware(&reflash_hcd->fw_entry,
-				FW_IMAGE_NAME, tcm_hcd->pdev->dev.parent);
-			if (retval < 0) {
-				LOGE(tcm_hcd->pdev->dev.parent,
-						"Failed to request %s\n",
-						FW_IMAGE_NAME);
-				return retval;
+		while(retry_cnt--) {
+			if (reflash_hcd->reflash_by_manual == false) {
+				retval = request_firmware(&reflash_hcd->fw_entry,
+					FW_IMAGE_NAME, tcm_hcd->pdev->dev.parent);
+			} else {
+				retval = request_firmware(&reflash_hcd->fw_entry,
+					FW_IMAGE_NAME_MANUAL,  tcm_hcd->pdev->dev.parent);	
 			}
 
-		} else {
-			retval = request_firmware(&reflash_hcd->fw_entry,
-						FW_IMAGE_NAME_MANUAL,
-						tcm_hcd->pdev->dev.parent);
 			if (retval < 0) {
 				LOGE(tcm_hcd->pdev->dev.parent,
-						"Failed to request %s\n",
-						FW_IMAGE_NAME_MANUAL);
-				return retval;
+						"Failed to request %s, retry_cnt:%d\n",
+						reflash_hcd->reflash_by_manual ? FW_IMAGE_NAME_MANUAL : FW_IMAGE_NAME, retry_cnt);
+				if (retry_cnt == 0) {
+					return retval;
+				}
+				msleep(1000);
+			} else {
+				break;
 			}
 		}
-
 		reflash_hcd->image = reflash_hcd->fw_entry->data;
 		reflash_hcd->image_size = reflash_hcd->fw_entry->size;
 
@@ -937,7 +931,7 @@ static enum update_area reflash_compare_id_info(void)
 	image_fw_id = le4_to_uint(header->build_id);
 	device_fw_id = tcm_hcd->packrat_number;
 
-	if (image_fw_id > device_fw_id) {
+	if (image_fw_id != device_fw_id) {
 		LOGN(tcm_hcd->pdev->dev.parent,
 				"Image firmware ID newer than device firmware ID\n");
 		update_area = FIRMWARE_CONFIG;
@@ -1971,6 +1965,7 @@ static int reflash_update_boot_config(bool lock)
 		for (idx = 0; idx < BOOT_CONFIG_SLOTS; idx++) {
 			if (data->used == slot_used) {
 				data++;
+				continue;
 			} else {
 				break;
 			}
@@ -2067,7 +2062,7 @@ reset:
 	if (!do_reset)
 		goto exit;
 
-	if (tcm_hcd->reset_n_reinit(tcm_hcd, false, true) < 0) {
+	if (tcm_hcd->reset_n_reinit(tcm_hcd, true, true) < 0) {
 		LOGE(tcm_hcd->pdev->dev.parent,
 				"Failed to do reset\n");
 	}
@@ -2249,10 +2244,10 @@ static int reflash_update_app_firmware(void)
 	retval = 0;
 
 reset:
-	if (tcm_hcd->reset_n_reinit(tcm_hcd, false, true) < 0) {
-		LOGE(tcm_hcd->pdev->dev.parent,
-				"Failed to do reset\n");
-	}
+	// if (tcm_hcd->reset_n_reinit(tcm_hcd, false, true) < 0) {
+	// 	LOGE(tcm_hcd->pdev->dev.parent,
+	// 			"Failed to do reset\n");
+	// }
 
 #ifdef WATCHDOG_SW
 	tcm_hcd->update_watchdog(tcm_hcd, true);
@@ -2343,22 +2338,23 @@ static void reflash_startup_work(struct work_struct *work)
 {
 	int retval;
 #ifdef CONFIG_FB
-	unsigned int timeout;
+	//unsigned int timeout;
 #endif
 	struct ovt_tcm_hcd *tcm_hcd = reflash_hcd->tcm_hcd;
 
 #ifdef CONFIG_FB
-	timeout = FB_READY_TIMEOUT_S * 1000 / FB_READY_WAIT_MS;
+	// timeout = FB_READY_TIMEOUT_S * 1000 / FB_READY_WAIT_MS;
 
-	while (tcm_hcd->fb_ready != FB_READY_COUNT) {
-		if (timeout == 0) {
-			LOGE(tcm_hcd->pdev->dev.parent,
-					"Timed out waiting for FB ready\n");
-			return;
-		}
-		msleep(FB_READY_WAIT_MS);
-		timeout--;
-	}
+	// while (tcm_hcd->fb_ready != FB_READY_COUNT) {
+	// 	if (timeout == 0) {
+	// 		LOGE(tcm_hcd->pdev->dev.parent,
+	// 				"Timed out waiting for FB ready\n");
+	// 		return;
+	// 	}
+	// 	msleep(FB_READY_WAIT_MS);
+	// 	timeout--;
+	// }
+	msleep(2000);
 #endif
 
 	pm_stay_awake(&tcm_hcd->pdev->dev);
@@ -2432,7 +2428,8 @@ static int reflash_init(struct ovt_tcm_hcd *tcm_hcd)
 	}
 
 	for (idx = 0; idx < ARRAY_SIZE(attrs); idx++) {
-		retval = sysfs_create_file(reflash_hcd->sysfs_dir,
+		//retval = sysfs_create_file(reflash_hcd->sysfs_dir,
+		retval = sysfs_create_file(&tcm_hcd->pdev->dev.kobj,	//default path
 				&(*attrs[idx]).attr);
 		if (retval < 0) {
 			LOGE(tcm_hcd->pdev->dev.parent,
@@ -2578,6 +2575,7 @@ static struct ovt_tcm_module_cb reflash_module = {
 	.early_suspend = NULL,
 };
 
+
 int reflash_module_init(void)
 {
 	return ovt_tcm_add_module(&reflash_module, true);
@@ -2592,6 +2590,5 @@ void reflash_module_exit(void)
 	return;
 }
 
-MODULE_AUTHOR("Omnivision, Inc.");
-MODULE_DESCRIPTION("Omnivision TCM Reflash Module");
-MODULE_LICENSE("GPL v2");
+EXPORT_SYMBOL(reflash_module_init);
+EXPORT_SYMBOL(reflash_module_exit);

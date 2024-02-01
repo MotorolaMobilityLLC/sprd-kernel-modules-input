@@ -1,13 +1,7 @@
 /*
- * Omnivision TCM touchscreen driver
+ * omnivision TCM touchscreen driver
  *
- * Copyright (C) 2017-2018 Omnivision Incorporated. All rights reserved.
- *
- * Copyright (C) 2017-2018 Scott Lin <scott.lin@tw.omnivision.com>
- * Copyright (C) 2018-2019 Ian Su <ian.su@tw.omnivision.com>
- * Copyright (C) 2018-2019 Joey Zhou <joey.zhou@omnivision.com>
- * Copyright (C) 2018-2019 Yuehao Qiu <yuehao.qiu@omnivision.com>
- * Copyright (C) 2018-2019 Aaron Chen <aaron.chen@tw.omnivision.com>
+ * Copyright (C) 2017-2018 omnivision Incorporated. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,17 +13,17 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
  *
- * INFORMATION CONTAINED IN THIS DOCUMENT IS PROVIDED "AS-IS," AND OMNIVISION
+ * INFORMATION CONTAINED IN THIS DOCUMENT IS PROVIDED "AS-IS," AND omnivision
  * EXPRESSLY DISCLAIMS ALL EXPRESS AND IMPLIED WARRANTIES, INCLUDING ANY
  * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE,
  * AND ANY WARRANTIES OF NON-INFRINGEMENT OF ANY INTELLECTUAL PROPERTY RIGHTS.
- * IN NO EVENT SHALL OMNIVISION BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * IN NO EVENT SHALL omnivision BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
  * SPECIAL, PUNITIVE, OR CONSEQUENTIAL DAMAGES ARISING OUT OF OR IN CONNECTION
  * WITH THE USE OF THE INFORMATION CONTAINED IN THIS DOCUMENT, HOWEVER CAUSED
  * AND BASED ON ANY THEORY OF LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
- * NEGLIGENCE OR OTHER TORTIOUS ACTION, AND EVEN IF OMNIVISION WAS ADVISED OF
+ * NEGLIGENCE OR OTHER TORTIOUS ACTION, AND EVEN IF omnivision WAS ADVISED OF
  * THE POSSIBILITY OF SUCH DAMAGE. IF A TRIBUNAL OF COMPETENT JURISDICTION DOES
- * NOT PERMIT THE DISCLAIMER OF DIRECT DAMAGES OR ANY OTHER DAMAGES, OMNIVISION'
+ * NOT PERMIT THE DISCLAIMER OF DIRECT DAMAGES OR ANY OTHER DAMAGES, omnivision'
  * TOTAL CUMULATIVE LIABILITY TO ANY PARTY SHALL NOT EXCEED ONE HUNDRED U.S.
  * DOLLARS.
  */
@@ -39,11 +33,17 @@
 #include <linux/firmware.h>
 #include "omnivision_tcm_core.h"
 
+#define USE_OMNIVSION_IMG_FILE 1
+
+#if !USE_OMNIVSION_IMG_FILE
+#include "omnivision_firmware_header.h"
+#endif
 
 #define ENABLE_SYS_ZEROFLASH true
 
 // #define FW_IMAGE_NAME "omnivision/hdl_firmware.img"
 #define FW_IMAGE_NAME "hdl_firmware_4lane.img"
+#define FW_IMAGE_NAME1 "tcl_td4160.img"
 
 #define BOOT_CONFIG_ID "BOOT_CONFIG"
 
@@ -77,7 +77,7 @@
 
 #define F35_WRITE_FW_TO_PMEM_COMMAND 4
 
-#define TP_RESET_TO_HDL_DELAY_MS 0
+#define TP_RESET_TO_HDL_DELAY_MS 11
 
 #define DOWNLOAD_RETRY_COUNT 10
 
@@ -258,12 +258,12 @@ static ssize_t zeroflash_sysfs_hdl_store(struct device *dev,
 		if (retval < 0)
 			LOGE(tcm_hcd->pdev->dev.parent,
 				"Failed to wait for completion of host download\n");
-
+#if USE_OMNIVSION_IMG_FILE
 		if (zeroflash_hcd->fw_entry) {
 			release_firmware(zeroflash_hcd->fw_entry);
 			zeroflash_hcd->fw_entry = NULL;
 		}
-
+#endif
 		zeroflash_hcd->image = NULL;
 
 	} else {
@@ -523,35 +523,62 @@ static int zeroflash_parse_fw_image(void)
 static int zeroflash_get_fw_image(void)
 {
 	int retval;
+	char *fw_name;
+#if USE_OMNIVSION_IMG_FILE
+	int retry_cnt = 10;
+#endif
 	struct ovt_tcm_hcd *tcm_hcd = zeroflash_hcd->tcm_hcd;
 
-	if (zeroflash_hcd->fw_entry != NULL)
-		return 0;
+#if USE_OMNIVSION_IMG_FILE
+	if (zeroflash_hcd->fw_entry != NULL) {
+		release_firmware(zeroflash_hcd->fw_entry);
+		zeroflash_hcd->fw_entry = NULL;
+		zeroflash_hcd->image = NULL;
+	}
 
-	if (zeroflash_hcd->image == NULL) {
+	if(strcmp(lcd_name, LCD_NAME) == 0)
+			fw_name = FW_IMAGE_NAME;
+	else if (strcmp(lcd_name, LCD_NAME1) == 0)
+		fw_name = FW_IMAGE_NAME1;
+	else
+		fw_name = FW_IMAGE_NAME1;
+
+	LOGE(tcm_hcd->pdev->dev.parent,
+				"request fw name is: %s\n",
+				fw_name);
+	while(retry_cnt--) {
 		retval = request_firmware(&zeroflash_hcd->fw_entry,
-				FW_IMAGE_NAME,
+				fw_name,
 				tcm_hcd->pdev->dev.parent);
 		if (retval < 0) {
 			LOGE(tcm_hcd->pdev->dev.parent,
-					"Failed to request %s\n",
-					FW_IMAGE_NAME);
-			return retval;
+					"Failed to request %s, retry_cnt:%d\n",
+					fw_name, retry_cnt);
+			if (retry_cnt == 0) {
+				return retval;
+			}
+			msleep(1000);
+		} else {
+			break;
 		}
 	}
-
 	LOGD(tcm_hcd->pdev->dev.parent,
 			"Firmware image size = %d\n",
 			(unsigned int)zeroflash_hcd->fw_entry->size);
 
 	zeroflash_hcd->image = zeroflash_hcd->fw_entry->data;
+#else
+	zeroflash_hcd->image = omnivsion_image_array;
+#endif
 
 	retval = zeroflash_parse_fw_image();
 	if (retval < 0) {
 		LOGE(tcm_hcd->pdev->dev.parent,
 				"Failed to parse firmware image\n");
+#if USE_OMNIVSION_IMG_FILE
 		release_firmware(zeroflash_hcd->fw_entry);
 		zeroflash_hcd->fw_entry = NULL;
+#endif
 		zeroflash_hcd->image = NULL;
 		return retval;
 	}
@@ -563,6 +590,7 @@ static void zeroflash_download_config(void)
 {
 	struct firmware_status *fw_status;
 	struct ovt_tcm_hcd *tcm_hcd = zeroflash_hcd->tcm_hcd;
+	int retval;
 
 	fw_status = &zeroflash_hcd->fw_status;
 
@@ -570,14 +598,19 @@ static void zeroflash_download_config(void)
 			&& !(fw_status->need_open_short_config
 			&& zeroflash_hcd->has_open_short_config)
 			&& (atomic_read(&tcm_hcd->host_downloading))) {
-
+		atomic_set(&tcm_hcd->host_downloading, 0);
+		retval = wait_for_completion_timeout(tcm_hcd->helper.helper_completion,
+			msecs_to_jiffies(500));
+		if (retval == 0) {
+			LOGE(tcm_hcd->pdev->dev.parent, "timeout to wait for helper completion\n");
+			return;
+		}
 		if (atomic_read(&tcm_hcd->helper.task) == HELP_NONE) {
 			atomic_set(&tcm_hcd->helper.task,
 					HELP_SEND_REINIT_NOTIFICATION);
 			queue_work(tcm_hcd->helper.workqueue,
 					&tcm_hcd->helper.work);
 		}
-		atomic_set(&tcm_hcd->host_downloading, 0);
 		return;
 	}
 
@@ -978,8 +1011,9 @@ exit:
 	LOGN(tcm_hcd->pdev->dev.parent,
 			"End of config download\n");
 
-    if (tcm_hcd->ovt_tcm_driver_removing == 1)
-    return;
+    if (tcm_hcd->ovt_tcm_driver_removing == 1) {
+		return;
+	}
 
 	zeroflash_download_config();
 
@@ -1077,7 +1111,7 @@ static int zeroflash_download_app_fw(void)
 
 static void zeroflash_do_f35_firmware_download(void)
 {
-	int retval = 0;
+	int retval;
 	struct rmi_f35_data data;
 	struct ovt_tcm_hcd *tcm_hcd = zeroflash_hcd->tcm_hcd;
 	static unsigned int retry_count;
@@ -1188,13 +1222,13 @@ exit:
 static void zeroflash_do_romboot_firmware_download(void)
 {
 	int retval;
-	unsigned char *out_buf = NULL;
 	unsigned char *resp_buf = NULL;
 	unsigned int resp_buf_size;
 	unsigned int resp_length;
 	unsigned int data_size_blocks;
 	unsigned int image_size;
 	struct ovt_tcm_hcd *tcm_hcd = zeroflash_hcd->tcm_hcd;
+	const struct ovt_tcm_board_data *bdata = tcm_hcd->hw_if->bdata;
 
 	LOGN(tcm_hcd->pdev->dev.parent,
 			"Prepare ROMBOOT firmware download\n");
@@ -1235,24 +1269,29 @@ static void zeroflash_do_romboot_firmware_download(void)
 
 	data_size_blocks = image_size / 16;
 
-	out_buf = kzalloc(image_size + RESERVED_BYTES,
-			GFP_KERNEL);
-	if(out_buf == NULL) {
-		LOGE(tcm_hcd->pdev->dev.parent, "kzalloc for out_buf failed!\n");
-		return;
+	LOCK_BUFFER(zeroflash_hcd->out);
+
+	retval = ovt_tcm_alloc_mem(tcm_hcd,
+			&zeroflash_hcd->out,
+			image_size + RESERVED_BYTES);
+	if (retval < 0) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Failed to allocate memory for application firmware\n");
+		UNLOCK_BUFFER(zeroflash_hcd->out);
+		goto exit;
 	}
-	memset(out_buf, 0x00, RESERVED_BYTES);
 
-	out_buf[0] = zeroflash_hcd->image_info.app_firmware.size >> 16;
+	zeroflash_hcd->out.buf[0] = zeroflash_hcd->image_info.app_firmware.size >> 16;
 
-	retval = secure_memcpy(&out_buf[RESERVED_BYTES],
+	retval = secure_memcpy(&zeroflash_hcd->out.buf[RESERVED_BYTES],
 			zeroflash_hcd->image_info.app_firmware.size,
 			zeroflash_hcd->image_info.app_firmware.data,
 			zeroflash_hcd->image_info.app_firmware.size,
 			zeroflash_hcd->image_info.app_firmware.size);
 	if (retval < 0) {
 		LOGE(tcm_hcd->pdev->dev.parent,
-				"Failed to copy payload\n");
+				"Failed to copy application firmware data\n");
+		UNLOCK_BUFFER(zeroflash_hcd->out);
 		goto exit;
 	}
 
@@ -1262,7 +1301,7 @@ static void zeroflash_do_romboot_firmware_download(void)
 
 	retval = tcm_hcd->write_message(tcm_hcd,
 			CMD_ROMBOOT_DOWNLOAD,
-			out_buf,
+			zeroflash_hcd->out.buf,
 			image_size + RESERVED_BYTES,
 			&resp_buf,
 			&resp_buf_size,
@@ -1272,13 +1311,27 @@ static void zeroflash_do_romboot_firmware_download(void)
 	if (retval < 0) {
 		LOGE(tcm_hcd->pdev->dev.parent,
 				"Failed to write command ROMBOOT DOWNLOAD");
+		UNLOCK_BUFFER(zeroflash_hcd->out);
+		if (tcm_hcd->status_report_code != REPORT_IDENTIFY) {
+			gpio_set_value(bdata->reset_gpio, 0);
+			msleep(5);
+			gpio_set_value(bdata->reset_gpio, 1);
+			msleep(5);
+		}
 		goto exit;
 	}
+	UNLOCK_BUFFER(zeroflash_hcd->out);
 
 	retval = tcm_hcd->switch_mode(tcm_hcd, FW_MODE_BOOTLOADER);
 	if (retval < 0) {
 		LOGE(tcm_hcd->pdev->dev.parent,
 				"Failed to switch to bootloader");
+		if (tcm_hcd->status_report_code != REPORT_IDENTIFY) {
+			gpio_set_value(bdata->reset_gpio, 0);
+			msleep(5);
+			gpio_set_value(bdata->reset_gpio, 1);
+			msleep(5);
+		}
 		goto exit;
 	}
 
@@ -1286,10 +1339,7 @@ exit:
 
 	pm_relax(&tcm_hcd->pdev->dev);
 
-	kfree(out_buf);
-	out_buf = NULL;
 	kfree(resp_buf);
-	resp_buf = NULL;
 
 	return;
 }
@@ -1336,7 +1386,8 @@ static int zeroflash_init(struct ovt_tcm_hcd *tcm_hcd)
 	}
 
 	for (idx = 0; idx < ARRAY_SIZE(attrs); idx++) {
-		retval = sysfs_create_file(zeroflash_hcd->sysfs_dir,
+		//retval = sysfs_create_file(zeroflash_hcd->sysfs_dir,
+		retval = sysfs_create_file(&tcm_hcd->pdev->dev.kobj,	//default path
 				&(*attrs[idx]).attr);
 		if (retval < 0) {
 			LOGE(tcm_hcd->pdev->dev.parent,
@@ -1372,10 +1423,6 @@ static int zeroflash_remove(struct ovt_tcm_hcd *tcm_hcd)
 	if (!zeroflash_hcd)
 		goto exit;
 
-	if (zeroflash_hcd->fw_entry)
-		release_firmware(zeroflash_hcd->fw_entry);
-
-
 	if (ENABLE_SYS_ZEROFLASH == true) {
 
 		for (idx = 0; idx < ARRAY_SIZE(attrs); idx++) {
@@ -1393,7 +1440,10 @@ static int zeroflash_remove(struct ovt_tcm_hcd *tcm_hcd)
 
 	RELEASE_BUFFER(zeroflash_hcd->resp);
 	RELEASE_BUFFER(zeroflash_hcd->out);
-
+#if USE_OMNIVSION_IMG_FILE
+	if (zeroflash_hcd->fw_entry)
+		release_firmware(zeroflash_hcd->fw_entry);
+#endif
 	kfree(zeroflash_hcd);
 	zeroflash_hcd = NULL;
 
@@ -1468,12 +1518,12 @@ static struct ovt_tcm_module_cb zeroflash_module = {
 	.early_suspend = NULL,
 };
 
-int zeroflash_module_init(void)
+int  zeroflash_module_init(void)
 {
 	return ovt_tcm_add_module(&zeroflash_module, true);
 }
 
-void zeroflash_module_exit(void)
+void  zeroflash_module_exit(void)
 {
 	ovt_tcm_add_module(&zeroflash_module, false);
 
@@ -1482,6 +1532,6 @@ void zeroflash_module_exit(void)
 	return;
 }
 
-MODULE_AUTHOR("Omnivision, Inc.");
-MODULE_DESCRIPTION("Omnivision TCM Zeroflash Module");
-MODULE_LICENSE("GPL v2");
+EXPORT_SYMBOL(zeroflash_module_init);
+EXPORT_SYMBOL(zeroflash_module_exit);
+

@@ -1,13 +1,7 @@
 /*
- * Omnivision TCM touchscreen driver
+ * omnivision TCM touchscreen driver
  *
- * Copyright (C) 2017-2018 Omnivision Incorporated. All rights reserved.
- *
- * Copyright (C) 2017-2018 Scott Lin <scott.lin@tw.omnivision.com>
- * Copyright (C) 2018-2019 Ian Su <ian.su@tw.omnivision.com>
- * Copyright (C) 2018-2019 Joey Zhou <joey.zhou@omnivision.com>
- * Copyright (C) 2018-2019 Yuehao Qiu <yuehao.qiu@omnivision.com>
- * Copyright (C) 2018-2019 Aaron Chen <aaron.chen@tw.omnivision.com>
+ * Copyright (C) 2017-2018 omnivision Incorporated. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,17 +13,17 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
  *
- * INFORMATION CONTAINED IN THIS DOCUMENT IS PROVIDED "AS-IS," AND OMNIVISION
+ * INFORMATION CONTAINED IN THIS DOCUMENT IS PROVIDED "AS-IS," AND omnivision
  * EXPRESSLY DISCLAIMS ALL EXPRESS AND IMPLIED WARRANTIES, INCLUDING ANY
  * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE,
  * AND ANY WARRANTIES OF NON-INFRINGEMENT OF ANY INTELLECTUAL PROPERTY RIGHTS.
- * IN NO EVENT SHALL OMNIVISION BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * IN NO EVENT SHALL omnivision BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
  * SPECIAL, PUNITIVE, OR CONSEQUENTIAL DAMAGES ARISING OUT OF OR IN CONNECTION
  * WITH THE USE OF THE INFORMATION CONTAINED IN THIS DOCUMENT, HOWEVER CAUSED
  * AND BASED ON ANY THEORY OF LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
- * NEGLIGENCE OR OTHER TORTIOUS ACTION, AND EVEN IF OMNIVISION WAS ADVISED OF
+ * NEGLIGENCE OR OTHER TORTIOUS ACTION, AND EVEN IF omnivision WAS ADVISED OF
  * THE POSSIBILITY OF SUCH DAMAGE. IF A TRIBUNAL OF COMPETENT JURISDICTION DOES
- * NOT PERMIT THE DISCLAIMER OF DIRECT DAMAGES OR ANY OTHER DAMAGES, OMNIVISION'
+ * NOT PERMIT THE DISCLAIMER OF DIRECT DAMAGES OR ANY OTHER DAMAGES, omnivision'
  * TOTAL CUMULATIVE LIABILITY TO ANY PARTY SHALL NOT EXCEED ONE HUNDRED U.S.
  * DOLLARS.
  */
@@ -182,7 +176,6 @@ static struct bin_attribute bin_attr = {
 static ssize_t recovery_sysfs_romboot_recovery_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t count)
 {
-	int retval = 0;
 	unsigned int input;
 	struct ovt_tcm_hcd *tcm_hcd = recovery_hcd->tcm_hcd;
 
@@ -192,7 +185,7 @@ static ssize_t recovery_sysfs_romboot_recovery_store(struct device *dev,
 	if (input)
 		recovery_do_romboot_recovery(tcm_hcd);
 
-	return retval;
+	return count;
 }
 
 static int recovery_parse_romboot_ihex(void)
@@ -297,13 +290,11 @@ static int recovery_flash_romboot_command(struct ovt_tcm_hcd *tcm_hcd,
 	resp_buf = NULL;
 	resp_buf_size = 0;
 
-	payld_buf = kzalloc(sizeof(flash_param) + out_size,	GFP_KERNEL);
-	if(payld_buf == NULL) {
-		LOGE(tcm_hcd->pdev->dev.parent, "kzalloc for payld_buf failed!\n");
-		return -ENOMEM;
-	}
+	payld_buf = kzalloc(sizeof(flash_param) + out_size,
+			GFP_KERNEL);
 
 	memcpy(payld_buf, &flash_param, sizeof(flash_param));
+
 	memcpy(payld_buf + sizeof(flash_param), out, out_size);
 
 	retval = tcm_hcd->write_message(tcm_hcd,
@@ -327,8 +318,6 @@ static int recovery_flash_romboot_command(struct ovt_tcm_hcd *tcm_hcd,
 exit:
 	kfree(payld_buf);
 	kfree(resp_buf);
-	payld_buf = NULL;
-	resp_buf = NULL;
 	return retval;
 }
 
@@ -462,17 +451,59 @@ static void recovery_do_romboot_recovery(struct ovt_tcm_hcd *tcm_hcd)
 	unsigned int image_size;
 	unsigned char *out_buf = NULL;
 
+	unsigned char *resp_buf;
+	unsigned int resp_buf_size;
+	unsigned int resp_length;
+
 	LOGN(tcm_hcd->pdev->dev.parent,
 			"%s\n", __func__);
 
 	mutex_lock(&tcm_hcd->extif_mutex);
 
 	pm_stay_awake(&tcm_hcd->pdev->dev);
+	atomic_set(&tcm_hcd->firmware_flashing, 1);
 
 	if (tcm_hcd->id_info.mode != MODE_ROMBOOTLOADER) {
 		LOGE(tcm_hcd->pdev->dev.parent,
 				"Not in romboot\n");
-		goto do_program_exit;
+		if (tcm_hcd->id_info.mode == MODE_APPLICATION_FIRMWARE) {
+			retval = tcm_hcd->write_message(tcm_hcd,
+					CMD_RUN_BOOTLOADER_FIRMWARE,
+					NULL,
+					0,
+					&resp_buf,
+					&resp_buf_size,
+					&resp_length,
+					NULL,
+					0);
+			if (retval > 0) {
+				LOGE(tcm_hcd->pdev->dev.parent,
+						"ok enter bootloader mode\n");
+			} else {
+				goto do_program_exit;
+			}
+		}
+
+		if (tcm_hcd->id_info.mode == MODE_TDDI_BOOTLOADER) {
+			retval = tcm_hcd->write_message(tcm_hcd,
+					CMD_REBOOT_TO_ROM_BOOTLOADER,
+					NULL,
+					0,
+					&resp_buf,
+					&resp_buf_size,
+					&resp_length,
+					NULL,
+					0);
+			if (retval > 0) {
+				LOGE(tcm_hcd->pdev->dev.parent,
+						"ok enter romboot mode\n");
+			} else {
+				goto do_program_exit;
+			}
+		}
+		if (tcm_hcd->id_info.mode != MODE_ROMBOOTLOADER) {
+			goto do_program_exit;
+		}
 	}
 
 	retval = recovery_parse_romboot_ihex();
@@ -518,7 +549,7 @@ static void recovery_do_romboot_recovery(struct ovt_tcm_hcd *tcm_hcd)
 
 	LOGN(tcm_hcd->pdev->dev.parent,
 			"Do reset and re-init");
-	retval = tcm_hcd->reset_n_reinit(tcm_hcd, true, true);
+	retval = tcm_hcd->reset_n_reinit(tcm_hcd, false, true);
 	if (retval < 0) {
 		LOGE(tcm_hcd->pdev->dev.parent,
 				"Failed to reset");
@@ -526,12 +557,14 @@ static void recovery_do_romboot_recovery(struct ovt_tcm_hcd *tcm_hcd)
 
 do_program_exit:
 
+	atomic_set(&tcm_hcd->firmware_flashing, 0);
+
 	pm_relax(&tcm_hcd->pdev->dev);
 
 	mutex_unlock(&tcm_hcd->extif_mutex);
 
 	kfree(out_buf);
-	out_buf = NULL;
+
 	return;
 }
 
@@ -1172,7 +1205,7 @@ static int recovery_do_f35_recovery(void)
 
 static int recovery_init(struct ovt_tcm_hcd *tcm_hcd)
 {
-	int retval = 0;
+	int retval;
 	int idx;
 
 	recovery_hcd = kzalloc(sizeof(*recovery_hcd), GFP_KERNEL);
@@ -1186,6 +1219,7 @@ static int recovery_init(struct ovt_tcm_hcd *tcm_hcd)
 	if (!recovery_hcd->ihex_buf) {
 		LOGE(tcm_hcd->pdev->dev.parent,
 				"Failed to allocate memory for recovery_hcd->ihex_buf\n");
+        retval = -ENOMEM;
 		goto err_allocate_ihex_buf;
 	}
 
@@ -1193,6 +1227,7 @@ static int recovery_init(struct ovt_tcm_hcd *tcm_hcd)
 	if (!recovery_hcd->data_buf) {
 		LOGE(tcm_hcd->pdev->dev.parent,
 				"Failed to allocate memory for recovery_hcd->data_buf\n");
+        retval = -ENOMEM;
 		goto err_allocate_data_buf;
 	}
 
@@ -1217,7 +1252,8 @@ static int recovery_init(struct ovt_tcm_hcd *tcm_hcd)
 	}
 
 	for (idx = 0; idx < ARRAY_SIZE(attrs); idx++) {
-		retval = sysfs_create_file(recovery_hcd->sysfs_dir,
+		//retval = sysfs_create_file(recovery_hcd->sysfs_dir,
+		retval = sysfs_create_file(&tcm_hcd->pdev->dev.kobj,	//default path
 				&(*attrs[idx]).attr);
 		if (retval < 0) {
 			LOGE(tcm_hcd->pdev->dev.parent,
@@ -1245,10 +1281,8 @@ err_sysfs_create_file:
 
 err_sysfs_create_dir:
 	kfree(recovery_hcd->data_buf);
-	recovery_hcd->data_buf = NULL;
 err_allocate_data_buf:
 	kfree(recovery_hcd->ihex_buf);
-	recovery_hcd->ihex_buf = NULL;
 err_allocate_ihex_buf:
 	kfree(recovery_hcd);
 	recovery_hcd = NULL;
@@ -1325,6 +1359,5 @@ void recovery_module_exit(void)
 	return;
 }
 
-MODULE_AUTHOR("Omnivision, Inc.");
-MODULE_DESCRIPTION("Omnivision TCM Recovery Module");
-MODULE_LICENSE("GPL v2");
+EXPORT_SYMBOL(recovery_module_init);
+EXPORT_SYMBOL(recovery_module_exit);

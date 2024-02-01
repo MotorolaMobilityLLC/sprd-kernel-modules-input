@@ -2,12 +2,7 @@
  * Omnivision TCM touchscreen driver
  *
  * Copyright (C) 2017-2018 Omnivision Incorporated. All rights reserved.
- *
- * Copyright (C) 2017-2018 Scott Lin <scott.lin@tw.omnivision.com>
- * Copyright (C) 2018-2019 Ian Su <ian.su@tw.omnivision.com>
- * Copyright (C) 2018-2019 Joey Zhou <joey.zhou@omnivision.com>
- * Copyright (C) 2018-2019 Yuehao Qiu <yuehao.qiu@omnivision.com>
- * Copyright (C) 2018-2019 Aaron Chen <aaron.chen@tw.omnivision.com>
+
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,26 +14,42 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
  *
- * INFORMATION CONTAINED IN THIS DOCUMENT IS PROVIDED "AS-IS," AND OMNIVISION
+ * INFORMATION CONTAINED IN THIS DOCUMENT IS PROVIDED "AS-IS," AND Omnivision
  * EXPRESSLY DISCLAIMS ALL EXPRESS AND IMPLIED WARRANTIES, INCLUDING ANY
  * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE,
  * AND ANY WARRANTIES OF NON-INFRINGEMENT OF ANY INTELLECTUAL PROPERTY RIGHTS.
- * IN NO EVENT SHALL OMNIVISION BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * IN NO EVENT SHALL Omnivision BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
  * SPECIAL, PUNITIVE, OR CONSEQUENTIAL DAMAGES ARISING OUT OF OR IN CONNECTION
  * WITH THE USE OF THE INFORMATION CONTAINED IN THIS DOCUMENT, HOWEVER CAUSED
  * AND BASED ON ANY THEORY OF LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
- * NEGLIGENCE OR OTHER TORTIOUS ACTION, AND EVEN IF OMNIVISION WAS ADVISED OF
+ * NEGLIGENCE OR OTHER TORTIOUS ACTION, AND EVEN IF Omnivision WAS ADVISED OF
  * THE POSSIBILITY OF SUCH DAMAGE. IF A TRIBUNAL OF COMPETENT JURISDICTION DOES
- * NOT PERMIT THE DISCLAIMER OF DIRECT DAMAGES OR ANY OTHER DAMAGES, OMNIVISION'
+ * NOT PERMIT THE DISCLAIMER OF DIRECT DAMAGES OR ANY OTHER DAMAGES, Omnivision'
  * TOTAL CUMULATIVE LIABILITY TO ANY PARTY SHALL NOT EXCEED ONE HUNDRED U.S.
  * DOLLARS.
  */
 
 #include <linux/gpio.h>
+#include <linux/proc_fs.h>
+#include <linux/seq_file.h>
+#include <linux/proc_fs.h>
+#include <linux/delay.h>
+#include <linux/slab.h>
+#include <asm/uaccess.h>
+#include <linux/gpio.h>
+#include <linux/kthread.h>
+#include <linux/interrupt.h>
+#include <linux/regulator/consumer.h>
+#include <linux/hrtimer.h>
+#include <linux/rtc.h>
+#include <linux/vmalloc.h>
+
 #include "omnivision_tcm_core.h"
 #include "omnivision_tcm_testing.h"
 
 #define SYSFS_DIR_NAME "testing"
+
+#define OVT_TCM_LIMIT_TSR_IMAGE_NAME "omnivision/tsr_limit.img"
 
 #define REPORT_TIMEOUT_MS 5000
 
@@ -66,6 +77,62 @@ exit: \
 	mutex_unlock(&tcm_hcd->extif_mutex); \
 \
 	return retval; \
+}
+
+#define testing_sysfs_raw_delta_show(t_name) \
+static ssize_t testing_sysfs_##t_name##_show(struct device *dev, \
+		struct device_attribute *attr, char *buf) \
+{ \
+	int retval; \
+	int count = 0; \
+	int rows, cols, i, j; \
+	int data_value; \
+	unsigned char *report_data_buf; \
+	struct ovt_tcm_hcd *tcm_hcd = testing_hcd->tcm_hcd; \
+	struct ovt_tcm_app_info *app_info; \
+\
+	mutex_lock(&tcm_hcd->extif_mutex); \
+\
+	retval = testing_##t_name(); \
+	if (retval < 0) { \
+		LOGE(tcm_hcd->pdev->dev.parent, \
+				"Failed to do "#t_name" test\n"); \
+		goto exit; \
+	} \
+\
+	count = 0; \
+\
+	retval = snprintf(buf, PAGE_SIZE - count, \
+			"#t_name data:  %d\n", \
+			tcm_hcd->id_info.version); \
+	buf += retval; \
+	count += retval; \
+\
+	app_info = &tcm_hcd->app_info; \
+	rows = le2_to_uint(app_info->num_of_image_rows); \
+	cols = le2_to_uint(app_info->num_of_image_cols); \
+	report_data_buf = testing_hcd->report.buf; \
+	data_value = 0; \
+	for (i = 0; i < rows; i++) { \
+		for (j = 0; j < cols; j++) { \
+			data_value = (short)le2_to_uint(&report_data_buf[(i * cols + j) * 2]); \
+			retval = snprintf(buf, PAGE_SIZE - count,"%04d, ", data_value); \
+			buf += retval; \
+			count += retval; \
+		} \
+		retval = snprintf(buf, PAGE_SIZE - count,"\n"); \
+		buf += retval; \
+		count += retval; \
+	} \
+\
+	retval = snprintf(buf, PAGE_SIZE - count,"\n"); \
+	buf += retval; \
+	count += retval; \
+\
+exit: \
+	mutex_unlock(&tcm_hcd->extif_mutex); \
+\
+	return count; \
 }
 
 #define CHECK_BIT(var, pos) ((var) & (1<<(pos)))
@@ -99,15 +166,17 @@ struct testing_hcd {
 	unsigned int report_index;
 	unsigned int num_of_reports;
 	struct kobject *sysfs_dir;
+	struct proc_dir_entry *proc_csv;
 	struct ovt_tcm_buffer out;
 	struct ovt_tcm_buffer resp;
 	struct ovt_tcm_buffer report;
 	struct ovt_tcm_buffer process;
 	struct ovt_tcm_buffer output;
 	struct ovt_tcm_hcd *tcm_hcd;
+	struct ovt_tcm_test_threshold testing_csv_threshold;
 	int (*collect_reports)(enum report_type report_type,
 			unsigned int num_of_reports);
-
+	const struct firmware *limit_tsr_fw_entry;
 #ifdef PT1_GET_PIN_ASSIGNMENT
 #define MAX_PINS (64)
 	unsigned char *satic_cfg_buf;
@@ -143,9 +212,15 @@ static int testing_pt07_dynamic_range(void);
 
 static int testing_pt10_noise(void);
 
+static int testing_do_testing(void);
+
 static int testing_pt11_open_detection(void);
 
-SHOW_PROTOTYPE(testing, size)
+static int testing_raw_data(void);
+
+static int testing_delta_data(void);
+
+SHOW_PROTOTYPE(testing, testing_size)
 
 /* nodes for testing */
 SHOW_PROTOTYPE(testing, device_id)
@@ -155,11 +230,14 @@ SHOW_PROTOTYPE(testing, pt01_trx_trx_short)
 SHOW_PROTOTYPE(testing, pt05_full_raw)
 SHOW_PROTOTYPE(testing, pt07_dynamic_range)
 SHOW_PROTOTYPE(testing, pt10_noise)
+SHOW_PROTOTYPE(testing, do_testing)
 SHOW_PROTOTYPE(testing, pt11_open_detection)
+SHOW_PROTOTYPE(testing, raw_data)
+SHOW_PROTOTYPE(testing, delta_data)
 
 
 static struct device_attribute *attrs[] = {
-	ATTRIFY(size),
+	ATTRIFY(testing_size),
 	ATTRIFY(device_id),
 	ATTRIFY(config_id),
 	ATTRIFY(pt01_trx_trx_short),
@@ -167,7 +245,10 @@ static struct device_attribute *attrs[] = {
 	ATTRIFY(pt07_dynamic_range),
 	ATTRIFY(pt10_noise),
 	ATTRIFY(pt11_open_detection),
+	ATTRIFY(do_testing),
 	ATTRIFY(reset_open),
+	ATTRIFY(raw_data),
+	ATTRIFY(delta_data),
 };
 
 static ssize_t testing_sysfs_data_show(struct file *data_file,
@@ -199,8 +280,100 @@ testing_sysfs_show(pt11_open_detection)
 
 testing_sysfs_show(reset_open)
 
+testing_sysfs_raw_delta_show(raw_data)
 
-static ssize_t testing_sysfs_size_show(struct device *dev,
+testing_sysfs_raw_delta_show(delta_data)
+
+
+//#define LIMIT_FROM_CSV_FILE 1
+
+#ifdef LIMIT_FROM_CSV_FILE
+
+static int ovt_tcm_get_thr_from_csvfile(void)
+{
+	int ret = 0;
+	unsigned int rows = 0;
+	unsigned int cols = 0;
+	struct ovt_tcm_app_info *app_info = NULL;
+	struct ovt_tcm_test_threshold *threshold = &(testing_hcd->testing_csv_threshold);
+	struct ovt_tcm_hcd *tcm_hcd = testing_hcd->tcm_hcd;
+
+	char file_path[256] = {0};
+
+	strncpy(file_path, "/data/ovt_tcm_", sizeof(file_path));
+	// if (tcm_hcd->hw_if->bdata->project_id) {
+	// 	strncat(file_path, tcm_hcd->hw_if->bdata->project_id, sizeof(file_path));
+	// }
+	strncat(file_path, "cap_limits.csv", sizeof(file_path) - strlen(file_path) - 1);
+
+	app_info = &tcm_hcd->app_info;
+	rows = le2_to_uint(app_info->num_of_image_rows);
+	cols = le2_to_uint(app_info->num_of_image_cols);
+
+	printk("ovt tcm csv parser: rows: %d, cols: %d file_path:%s", rows, cols, file_path);
+	ret = ovt_tcm_parse_csvfile(file_path, CSV_RAW_DATA_MIN_ARRAY,
+			threshold->raw_data_min_limits, rows, cols);
+	if (ret) {
+		printk("ovt tcm csv parser: %s: Failed get %s \n", __func__, CSV_RAW_DATA_MIN_ARRAY);
+		return ret;
+	}
+
+	ret = ovt_tcm_parse_csvfile(file_path, CSV_RAW_DATA_MAX_ARRAY,
+			threshold->raw_data_max_limits, rows, cols);
+	if (ret) {
+		printk("ovt tcm csv parser: %s: Failed get %s \n", __func__, CSV_RAW_DATA_MAX_ARRAY);
+		return ret;
+	}
+
+	ret = ovt_tcm_parse_csvfile(file_path, CSV_OPEN_SHORT_MIN_ARRAY,
+			threshold->open_short_min_limits, rows, cols);
+	if (ret) {
+		printk("ovt tcm csv parser: %s: Failed get %s \n", __func__, CSV_OPEN_SHORT_MIN_ARRAY);
+		return ret;
+	}
+
+	ret = ovt_tcm_parse_csvfile(file_path, CSV_OPEN_SHORT_MAX_ARRAY,
+			threshold->open_short_max_limits, rows, cols);
+	if (ret) {
+		printk("ovt tcm csv parser: %s: Failed get %s \n", __func__, CSV_OPEN_SHORT_MAX_ARRAY);
+		return ret;
+	}
+
+	ret = ovt_tcm_parse_csvfile(file_path, CSV_LCD_NOISE_ARRAY,
+			threshold->lcd_noise_max_limits, rows, cols);
+	if (ret) {
+		printk("ovt tcm csv parser: %s: Failed get %s \n", __func__, CSV_LCD_NOISE_ARRAY);
+		return ret;
+	}
+
+	printk("ovt tcm csv parser: %s: success \n", __func__);
+	return 0;
+}
+#endif
+
+static char *g_testing_output_buf;
+#define OUTPUT_TO_CSV_STRING_LEN 100*1024
+
+static ssize_t testing_sysfs_do_testing_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	int retval;
+	int test_result;
+	//struct ovt_tcm_hcd *tcm_hcd = testing_hcd->tcm_hcd;
+
+	//mutex_lock(&tcm_hcd->extif_mutex);
+
+	test_result = testing_do_testing();
+
+	if (test_result) {
+		retval = snprintf(buf, PAGE_SIZE, "%s\n","fail");
+	} else {
+		retval = snprintf(buf, PAGE_SIZE, "%s\n","pass");
+	}
+	return retval;
+}
+
+static ssize_t testing_sysfs_testing_size_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
 	int retval;
@@ -253,6 +426,32 @@ static ssize_t testing_sysfs_data_show(struct file *data_file,
 
 	return retval;
 }
+/*/proc/fts_test_csv*/
+static int ovt_csv_show(struct seq_file *s, void *v)
+{
+    seq_printf(s, "%s", g_testing_output_buf);
+    return 0;
+}
+
+static int ovt_csv_open(struct inode *inode, struct file *file)
+{
+    return single_open(file, ovt_csv_show, PDE_DATA(inode));
+}
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 6, 0))
+static const struct proc_ops ovt_proccsv_fops = {
+    .proc_open = ovt_csv_open,
+    .proc_read = seq_read,
+    .proc_lseek = seq_lseek,
+    .proc_release = single_release,
+};
+#else
+static const struct file_operations ovt_proccsv_fops = {
+    .open = ovt_csv_open,
+    .read = seq_read,
+    .llseek = seq_lseek,
+    .release = single_release,
+};
+#endif
 
 static int testing_run_prod_test_item(enum test_code test_code)
 {
@@ -518,7 +717,7 @@ static void testing_standard_frame_output(bool image_only)
 
 	return;
 }
-
+static const char *device_id_limit = "3618";
 static int testing_device_id(void)
 {
 	struct ovt_tcm_hcd *tcm_hcd = testing_hcd->tcm_hcd;
@@ -1259,6 +1458,276 @@ exit:
 }
 
 
+
+static int testing_do_test_item(enum test_code test_item, int limit_rows, int limit_cols, const int* limit_data_low, const int *limit_data_high, struct file *fp, char *output_str, int str_size)
+{
+	int retval;
+	int data, max_data, min_data, ave_data, sum_data;
+	unsigned char *buf;
+	int idx;
+	unsigned int row;
+	unsigned int col;
+	unsigned int rows;
+	unsigned int cols;
+
+	struct ovt_tcm_app_info *app_info;
+	struct ovt_tcm_hcd *tcm_hcd = testing_hcd->tcm_hcd;
+
+	LOGN(tcm_hcd->pdev->dev.parent,
+			"Start testing\n");
+
+	testing_hcd->result = false;
+	app_info = &tcm_hcd->app_info;
+
+	rows = le2_to_uint(app_info->num_of_image_rows);
+	cols = le2_to_uint(app_info->num_of_image_cols);
+
+	max_data = 0;
+	min_data = 0;
+	ave_data = 0;
+	sum_data = 0;
+
+	if (fp) {
+		ovt_tcm_store_to_file(fp, "\n%s do test item %d enter\n", __func__, test_item);
+	}
+	if (output_str) {
+		snprintf(output_str + strlen(output_str), str_size - strlen(output_str), 
+			"%s do test item %d enter\n", __func__, test_item);
+	}
+
+	retval = testing_run_prod_test_item(test_item);
+	if (retval < 0) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Failed to run test\n");
+		snprintf(output_str + strlen(output_str), str_size - strlen(output_str), 
+			"%s fail to get cmd response of %d\n", __func__, test_item);
+		goto exit;
+	}
+
+	LOCK_BUFFER(testing_hcd->resp);
+
+
+	idx = 0;
+	buf = testing_hcd->resp.buf;
+	testing_hcd->result = true;
+
+	if ((limit_cols < cols) || (limit_rows < rows)) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+			"incorrect cols and rows size of item:%d\n", test_item);
+		snprintf(output_str + strlen(output_str), str_size - strlen(output_str), 
+			"%s incorrect cols and rows size of item:%d\n", __func__, test_item);
+		testing_hcd->result = false;
+		goto exit;
+	}
+
+
+	for (row = 0; row < rows; row++) {
+		for (col = 0; col < cols; col++) {
+			int limit_low, limit_high;
+			if ((limit_cols == 1) && (limit_rows == 1)) {
+				if (limit_data_low)
+					limit_low = limit_data_low[0];
+				if (limit_data_high)
+				limit_high = limit_data_high[0];
+			} else {
+				if (limit_data_low)
+					limit_low = limit_data_low[row * limit_cols + col];
+				if (limit_data_high)
+					limit_high = limit_data_high[row * limit_cols + col];				
+			}
+			if (test_item == TEST_PT10_DELTA_NOISE || test_item == TEST_PT11_OPEN_DETECTION) {
+				data = (short)le2_to_uint(&buf[idx * 2]);
+			} else {
+				data = (unsigned short)le2_to_uint(&buf[idx * 2]);
+			}
+			if (idx == 0) {
+				min_data = data;
+				max_data = data;
+			}
+			if (fp) {
+				ovt_tcm_store_to_file(fp, "%d,", data);
+			}
+			if (output_str) {
+				snprintf(output_str + strlen(output_str), str_size - strlen(output_str),  "%d,", data);
+			}
+			if ((idx + 1) % cols == 0 && idx != 0) {
+				if (fp)
+					ovt_tcm_store_to_file(fp, "\n");
+				if (output_str) {
+					snprintf(output_str + strlen(output_str), str_size - strlen(output_str),  "\n");
+				}
+			}
+			sum_data += data;
+
+			if (data > max_data) {
+				max_data = data;
+			}
+			if (data < min_data) {
+				min_data = data;
+			}
+			if (limit_data_low) {
+				if (data < limit_low) {
+					testing_hcd->result = false;
+					LOGE(tcm_hcd->pdev->dev.parent,
+						"fail at (%2d, %2d) data = %5d, limit = %4d\n",
+					row, col, data, limit_data_low[row * limit_cols + col]);					
+				}
+			}
+			if (limit_data_high) {
+				if (data > limit_high) {
+					testing_hcd->result = false;
+					LOGE(tcm_hcd->pdev->dev.parent,
+						"fail at (%2d, %2d) data = %5d, limit = %4d\n",
+					row, col, data, limit_data_high[row * limit_cols + col]);		
+				}
+			}
+			idx++;
+		}
+	}
+	if (idx != 0)
+		ave_data = sum_data / idx;
+	UNLOCK_BUFFER(testing_hcd->resp);
+
+	retval = 0;
+
+exit:
+
+	if (fp) {
+		ovt_tcm_store_to_file(fp, "\n%s do test item min:%d  max:%d ave:%d\n", __func__, min_data, max_data, ave_data);
+		ovt_tcm_store_to_file(fp, "\n%s do test item %d end, result is %s\n", __func__, test_item, (testing_hcd->result)?"pass":"fail");
+	}
+	if (output_str) {
+		snprintf(output_str + strlen(output_str), str_size - strlen(output_str), "\n%s do test item min:%d  max:%d ave:%d\n", __func__, min_data, max_data, ave_data);
+		snprintf(output_str + strlen(output_str), str_size - strlen(output_str), "\n%s do test item %d end, result is %s\n", __func__, test_item, (testing_hcd->result)?"pass":"fail");
+	}
+	LOGN(tcm_hcd->pdev->dev.parent,
+			"test item:%d Result = %s\n", test_item, (testing_hcd->result)?"pass":"fail");
+	return (testing_hcd->result)? 0 : -1;
+}
+
+static int testing_do_testing(void)
+{
+	int retval;
+    int error_count = 0;
+	unsigned int rows;
+	unsigned int cols;
+	struct ovt_tcm_app_info *app_info;
+	struct ovt_tcm_hcd *tcm_hcd = testing_hcd->tcm_hcd;
+
+	app_info = &tcm_hcd->app_info;
+	rows = le2_to_uint(app_info->num_of_image_rows);
+	cols = le2_to_uint(app_info->num_of_image_cols);
+
+#ifdef LIMIT_FROM_CSV_FILE
+    uint8_t file_path[256];
+	struct file *fp = NULL;
+    mm_segment_t old_fs;
+	loff_t pos;
+    struct rtc_time rtc_now_time;
+#endif
+
+	if (!g_testing_output_buf) {
+		g_testing_output_buf = vmalloc(OUTPUT_TO_CSV_STRING_LEN);
+		if (!g_testing_output_buf) {
+			LOGE(tcm_hcd->pdev->dev.parent,
+				"can not alloc buffer for g_testing_output_buf\n");
+			return -1;
+		}
+	}
+	memset(g_testing_output_buf, 0, OUTPUT_TO_CSV_STRING_LEN);
+
+	snprintf(g_testing_output_buf + strlen(g_testing_output_buf), OUTPUT_TO_CSV_STRING_LEN - strlen(g_testing_output_buf), 
+		"start to do test,\n");
+
+#ifdef LIMIT_FROM_CSV_FILE
+
+	retval = ovt_tcm_get_thr_from_csvfile();
+	if (retval < 0) {
+		printk("ovt_tcm_get_thr_from_csvfile error, return\n");
+		snprintf(g_testing_output_buf + strlen(g_testing_output_buf), OUTPUT_TO_CSV_STRING_LEN - strlen(g_testing_output_buf), 
+		"ovt_tcm_get_thr_from_csvfile error\n");
+		error_count++;
+		goto sys_err;
+	}
+	retval = testing_do_test_item(TEST_PT7_DYNAMIC_RANGE, TX_NUM_MAX, RX_NUM_MAX, testing_hcd->testing_csv_threshold.raw_data_min_limits, 
+		testing_hcd->testing_csv_threshold.raw_data_max_limits, fp, g_testing_output_buf, OUTPUT_TO_CSV_STRING_LEN);
+	if (retval < 0) {
+		error_count++;
+	}
+
+	retval = testing_do_test_item(TEST_PT10_DELTA_NOISE, TX_NUM_MAX, RX_NUM_MAX, NULL, 
+		testing_hcd->testing_csv_threshold.lcd_noise_max_limits, fp, g_testing_output_buf, OUTPUT_TO_CSV_STRING_LEN);
+	if (retval < 0) {
+		error_count++;
+	}
+	retval = testing_do_test_item(TEST_PT11_OPEN_DETECTION, TX_NUM_MAX, RX_NUM_MAX, testing_hcd->testing_csv_threshold.open_short_min_limits, 
+		testing_hcd->testing_csv_threshold.open_short_max_limits, fp, g_testing_output_buf, OUTPUT_TO_CSV_STRING_LEN);
+	if (retval < 0) {
+		error_count++;
+	}
+#else
+	retval = testing_do_test_item(TEST_PT7_DYNAMIC_RANGE, rows, cols, pt7_low_limits_new, 
+		pt7_hi_limits_new, NULL, g_testing_output_buf, OUTPUT_TO_CSV_STRING_LEN);
+	if (retval < 0) {
+		error_count++;
+	}
+
+	retval = testing_do_test_item(TEST_PT10_DELTA_NOISE, rows, cols, NULL, 
+		pt10_high_limits_new, NULL, g_testing_output_buf, OUTPUT_TO_CSV_STRING_LEN);
+	if (retval < 0) {
+		error_count++;
+	}
+	retval = testing_do_test_item(TEST_PT11_OPEN_DETECTION, rows, cols, pt11_low_limits_new, 
+		pt11_hi_limits_new, NULL, g_testing_output_buf, OUTPUT_TO_CSV_STRING_LEN);
+	if (retval < 0) {
+		error_count++;
+	}
+#endif
+#ifdef LIMIT_FROM_CSV_FILE
+	rtc_time_to_tm(get_seconds(), &rtc_now_time);
+	if (error_count) {
+		//test fail result
+		sprintf(file_path, "/data/tp_%s_test_data_%02d%02d%02d-%02d%02d%02d-fail.csv", tcm_hcd->id_info.part_number,
+            (rtc_now_time.tm_year + 1900) % 100, rtc_now_time.tm_mon + 1, rtc_now_time.tm_mday,
+            rtc_now_time.tm_hour, rtc_now_time.tm_min, rtc_now_time.tm_sec);
+	} else {
+		//test pass result
+		sprintf(file_path, "/data/tp_%s_test_data_%02d%02d%02d-%02d%02d%02d-success.csv", tcm_hcd->id_info.part_number,
+            (rtc_now_time.tm_year + 1900) % 100, rtc_now_time.tm_mon + 1, rtc_now_time.tm_mday,
+            rtc_now_time.tm_hour, rtc_now_time.tm_min, rtc_now_time.tm_sec);
+	}
+    
+    old_fs = get_fs();
+    set_fs(KERNEL_DS);
+    fp = filp_open(file_path, O_WRONLY | O_CREAT | O_TRUNC, 0);
+    if (IS_ERR_OR_NULL(fp)) {
+        printk("ovt tcm Open log file '%s' failed.\n", file_path);
+
+		snprintf(g_testing_output_buf + strlen(g_testing_output_buf), OUTPUT_TO_CSV_STRING_LEN - strlen(g_testing_output_buf), 
+			"can not open file:%s\n", file_path);
+        set_fs(old_fs);
+        goto sys_err;
+    }
+
+	pos = 0;
+	vfs_write(fp, g_testing_output_buf, strlen(g_testing_output_buf), &pos);
+	printk("g_testing_output_buf , strlen is %d\n", (int)strlen(g_testing_output_buf));
+	if (!IS_ERR_OR_NULL(fp)) {
+		printk("ovt tcm csv parser: filp close\n");
+		filp_close(fp, NULL);
+		fp = NULL;
+	}
+    set_fs(old_fs);
+#endif
+#ifdef LIMIT_FROM_CSV_FILE
+sys_err:
+#endif
+	if (error_count) {
+		return -1;
+	}
+    return 0;
+}
+
 static int testing_pt11_open_detection(void)
 {
 	int retval;
@@ -1370,6 +1839,31 @@ exit:
 	return retval;
 }
 
+static int testing_raw_data(void)
+{
+	int retval;
+	struct ovt_tcm_hcd *tcm_hcd = testing_hcd->tcm_hcd;
+ 	retval = testing_collect_reports(REPORT_RAW,1);
+	if (retval >= 0) {
+		LOGN(tcm_hcd->pdev->dev.parent, "success to collect raw data\n");
+	} else {
+		LOGN(tcm_hcd->pdev->dev.parent, "fail to collect raw data\n");
+	}
+	return retval;
+}
+
+static int testing_delta_data(void)
+{
+	int retval;
+	struct ovt_tcm_hcd *tcm_hcd = testing_hcd->tcm_hcd;
+ 	retval = testing_collect_reports(REPORT_DELTA,1);
+	if (retval >= 0) {
+		LOGN(tcm_hcd->pdev->dev.parent, "success to collect raw data\n");
+	} else {
+		LOGN(tcm_hcd->pdev->dev.parent, "fail to collect raw data\n");
+	}
+	return retval;
+}
 
 static int testing_reset_open(void)
 {
@@ -1522,7 +2016,8 @@ static int testing_init(struct ovt_tcm_hcd *tcm_hcd)
 	}
 
 	for (idx = 0; idx < ARRAY_SIZE(attrs); idx++) {
-		retval = sysfs_create_file(testing_hcd->sysfs_dir,
+		//retval = sysfs_create_file(testing_hcd->sysfs_dir,
+		retval = sysfs_create_file(&tcm_hcd->pdev->dev.kobj,	//default path
 				&(*attrs[idx]).attr);
 		if (retval < 0) {
 			LOGE(tcm_hcd->pdev->dev.parent,
@@ -1538,6 +2033,10 @@ static int testing_init(struct ovt_tcm_hcd *tcm_hcd)
 		goto err_sysfs_create_bin_file;
 	}
 
+	testing_hcd->proc_csv = proc_create_data("ovt_test_csv", 0777, NULL, &ovt_proccsv_fops, NULL);
+	if (NULL == testing_hcd->proc_csv) {
+		LOGE(tcm_hcd->pdev->dev.parent, "create proc_csv entry fail");
+	}
 	return 0;
 
 err_sysfs_create_bin_file:
@@ -1579,7 +2078,9 @@ static int testing_remove(struct ovt_tcm_hcd *tcm_hcd)
 	RELEASE_BUFFER(testing_hcd->report);
 	RELEASE_BUFFER(testing_hcd->resp);
 	RELEASE_BUFFER(testing_hcd->out);
-
+	if (testing_hcd->proc_csv) {
+		proc_remove(testing_hcd->proc_csv);
+	}
 	kfree(testing_hcd);
 	testing_hcd = NULL;
 
@@ -1626,6 +2127,7 @@ static struct ovt_tcm_module_cb testing_module = {
 	.early_suspend = NULL,
 };
 
+
 int testing_module_init(void)
 {
 	return ovt_tcm_add_module(&testing_module, true);
@@ -1639,7 +2141,5 @@ void testing_module_exit(void)
 
 	return;
 }
-
-MODULE_AUTHOR("Omnivision, Inc.");
-MODULE_DESCRIPTION("Omnivision TCM Testing Module");
-MODULE_LICENSE("GPL v2");
+EXPORT_SYMBOL(testing_module_init);
+EXPORT_SYMBOL(testing_module_exit);

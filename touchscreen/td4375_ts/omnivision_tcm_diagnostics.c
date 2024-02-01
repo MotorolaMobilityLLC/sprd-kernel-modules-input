@@ -1,13 +1,8 @@
 /*
- * Omnivision TCM touchscreen driver
+ * omnivision TCM touchscreen driver
  *
- * Copyright (C) 2017-2018 Omnivision Incorporated. All rights reserved.
+ * Copyright (C) 2017-2018 omnivision Incorporated. All rights reserved.
  *
- * Copyright (C) 2017-2018 Scott Lin <scott.lin@tw.omnivision.com>
- * Copyright (C) 2018-2019 Ian Su <ian.su@tw.omnivision.com>
- * Copyright (C) 2018-2019 Joey Zhou <joey.zhou@omnivision.com>
- * Copyright (C) 2018-2019 Yuehao Qiu <yuehao.qiu@omnivision.com>
- * Copyright (C) 2018-2019 Aaron Chen <aaron.chen@tw.omnivision.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,23 +14,21 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
  *
- * INFORMATION CONTAINED IN THIS DOCUMENT IS PROVIDED "AS-IS," AND OMNIVISION
+ * INFORMATION CONTAINED IN THIS DOCUMENT IS PROVIDED "AS-IS," AND omnivision
  * EXPRESSLY DISCLAIMS ALL EXPRESS AND IMPLIED WARRANTIES, INCLUDING ANY
  * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE,
  * AND ANY WARRANTIES OF NON-INFRINGEMENT OF ANY INTELLECTUAL PROPERTY RIGHTS.
- * IN NO EVENT SHALL OMNIVISION BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * IN NO EVENT SHALL omnivision BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
  * SPECIAL, PUNITIVE, OR CONSEQUENTIAL DAMAGES ARISING OUT OF OR IN CONNECTION
  * WITH THE USE OF THE INFORMATION CONTAINED IN THIS DOCUMENT, HOWEVER CAUSED
  * AND BASED ON ANY THEORY OF LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
- * NEGLIGENCE OR OTHER TORTIOUS ACTION, AND EVEN IF OMNIVISION WAS ADVISED OF
+ * NEGLIGENCE OR OTHER TORTIOUS ACTION, AND EVEN IF omnivision WAS ADVISED OF
  * THE POSSIBILITY OF SUCH DAMAGE. IF A TRIBUNAL OF COMPETENT JURISDICTION DOES
- * NOT PERMIT THE DISCLAIMER OF DIRECT DAMAGES OR ANY OTHER DAMAGES, OMNIVISION'
+ * NOT PERMIT THE DISCLAIMER OF DIRECT DAMAGES OR ANY OTHER DAMAGES, omnivision'
  * TOTAL CUMULATIVE LIABILITY TO ANY PARTY SHALL NOT EXCEED ONE HUNDRED U.S.
  * DOLLARS.
  */
 
-#include <linux/signal.h>
-#include <linux/signalfd.h>
 #include "omnivision_tcm_core.h"
 
 #define SYSFS_DIR_NAME "diagnostics"
@@ -50,7 +43,11 @@ struct diag_hcd {
 	unsigned char report_type;
 	enum pingpong_state state;
 	struct kobject *sysfs_dir;
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 20, 0))
 	struct kernel_siginfo sigio;
+#else
+	struct siginfo sigio;
+#endif
 	struct task_struct *task;
 	struct ovt_tcm_buffer ping;
 	struct ovt_tcm_buffer pong;
@@ -455,7 +452,8 @@ static int diag_init(struct ovt_tcm_hcd *tcm_hcd)
 	}
 
 	for (idx = 0; idx < ARRAY_SIZE(attrs); idx++) {
-		retval = sysfs_create_file(diag_hcd->sysfs_dir,
+		//retval = sysfs_create_file(diag_hcd->sysfs_dir,
+		retval = sysfs_create_file(&tcm_hcd->pdev->dev.kobj,	//default path
 				&(*attrs[idx]).attr);
 		if (retval < 0) {
 			LOGE(tcm_hcd->pdev->dev.parent,
@@ -464,7 +462,8 @@ static int diag_init(struct ovt_tcm_hcd *tcm_hcd)
 		}
 	}
 
-	retval = sysfs_create_bin_file(diag_hcd->sysfs_dir, &bin_attr);
+	//retval = sysfs_create_bin_file(diag_hcd->sysfs_dir, &bin_attr);
+	retval = sysfs_create_bin_file(&tcm_hcd->pdev->dev.kobj, &bin_attr);
 	if (retval < 0) {
 		LOGE(tcm_hcd->pdev->dev.parent,
 				"Failed to create sysfs bin file\n");
@@ -566,7 +565,5 @@ void diag_module_exit(void)
 
 	return;
 }
-
-MODULE_AUTHOR("Omnivision, Inc.");
-MODULE_DESCRIPTION("Omnivision TCM Diagnostics Module");
-MODULE_LICENSE("GPL v2");
+EXPORT_SYMBOL(diag_module_init);
+EXPORT_SYMBOL(diag_module_exit);
