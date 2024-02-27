@@ -43,7 +43,7 @@
 #include <linux/hrtimer.h>
 #include <linux/rtc.h>
 #include <linux/vmalloc.h>
-
+#include <linux/fs.h>
 #include "omnivision_tcm_core.h"
 #include "omnivision_tcm_testing.h"
 
@@ -284,8 +284,9 @@ testing_sysfs_raw_delta_show(raw_data)
 
 testing_sysfs_raw_delta_show(delta_data)
 
-
-//#define LIMIT_FROM_CSV_FILE 1
+#ifdef CFG_OVT_DEBUG
+#define LIMIT_FROM_CSV_FILE 1
+#endif
 
 #ifdef LIMIT_FROM_CSV_FILE
 
@@ -300,7 +301,7 @@ static int ovt_tcm_get_thr_from_csvfile(void)
 
 	char file_path[256] = {0};
 
-	strncpy(file_path, "/data/ovt_tcm_", sizeof(file_path));
+	strncpy(file_path, "/vendor/firmware/ovt_tcm_", sizeof(file_path));
 	// if (tcm_hcd->hw_if->bdata->project_id) {
 	// 	strncat(file_path, tcm_hcd->hw_if->bdata->project_id, sizeof(file_path));
 	// }
@@ -1570,7 +1571,7 @@ static int testing_do_test_item(enum test_code test_item, int limit_rows, int li
 					testing_hcd->result = false;
 					LOGE(tcm_hcd->pdev->dev.parent,
 						"fail at (%2d, %2d) data = %5d, limit = %4d\n",
-					row, col, data, limit_data_low[row * limit_cols + col]);					
+					row, col, data, limit_data_low[row * limit_cols + col]);
 				}
 			}
 			if (limit_data_high) {
@@ -1578,7 +1579,7 @@ static int testing_do_test_item(enum test_code test_item, int limit_rows, int li
 					testing_hcd->result = false;
 					LOGE(tcm_hcd->pdev->dev.parent,
 						"fail at (%2d, %2d) data = %5d, limit = %4d\n",
-					row, col, data, limit_data_high[row * limit_cols + col]);		
+					row, col, data, limit_data_high[row * limit_cols + col]);
 				}
 			}
 			idx++;
@@ -1605,6 +1606,35 @@ exit:
 	return (testing_hcd->result)? 0 : -1;
 }
 
+#ifdef LIMIT_FROM_CSV_FILE
+static char *get_date_time_str(void)
+{
+	static char time_data_buf[128] = { 0 };
+
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(4, 14, 0)
+	struct timespec now_time;
+	struct rtc_time rtc_now_time;
+
+	getnstimeofday(&now_time);
+	rtc_time_to_tm(now_time.tv_sec, &rtc_now_time);
+	snprintf(time_data_buf, sizeof(time_data_buf), "%04d%02d%02d-%02d%02d%02d",
+		(rtc_now_time.tm_year + 1900), rtc_now_time.tm_mon + 1,
+		rtc_now_time.tm_mday, rtc_now_time.tm_hour, rtc_now_time.tm_min,
+		rtc_now_time.tm_sec);
+#else
+	struct tm tm;
+	time64_to_tm(ktime_get_real_seconds(), 0, &tm);
+
+	snprintf(time_data_buf, sizeof(time_data_buf), "%04d%02d%02d-%02d%02d%02d",
+		(int)(tm.tm_year + 1900), tm.tm_mon + 1,
+		tm.tm_mday, tm.tm_hour, tm.tm_min,
+		tm.tm_sec);
+#endif
+
+	return time_data_buf;
+}
+#endif
+
 static int testing_do_testing(void)
 {
 	int retval;
@@ -1613,18 +1643,19 @@ static int testing_do_testing(void)
 	unsigned int cols;
 	struct ovt_tcm_app_info *app_info;
 	struct ovt_tcm_hcd *tcm_hcd = testing_hcd->tcm_hcd;
+#ifdef LIMIT_FROM_CSV_FILE
+    char file_path[256];
+	struct file *fp = NULL;
+    //mm_segment_t old_fs;
+	loff_t pos;
+    //struct rtc_time rtc_now_time;
+#endif
 
 	app_info = &tcm_hcd->app_info;
 	rows = le2_to_uint(app_info->num_of_image_rows);
 	cols = le2_to_uint(app_info->num_of_image_cols);
 
-#ifdef LIMIT_FROM_CSV_FILE
-    uint8_t file_path[256];
-	struct file *fp = NULL;
-    mm_segment_t old_fs;
-	loff_t pos;
-    struct rtc_time rtc_now_time;
-#endif
+
 
 	if (!g_testing_output_buf) {
 		g_testing_output_buf = vmalloc(OUTPUT_TO_CSV_STRING_LEN);
@@ -1684,32 +1715,24 @@ static int testing_do_testing(void)
 	}
 #endif
 #ifdef LIMIT_FROM_CSV_FILE
-	rtc_time_to_tm(get_seconds(), &rtc_now_time);
 	if (error_count) {
 		//test fail result
-		sprintf(file_path, "/data/tp_%s_test_data_%02d%02d%02d-%02d%02d%02d-fail.csv", tcm_hcd->id_info.part_number,
-            (rtc_now_time.tm_year + 1900) % 100, rtc_now_time.tm_mon + 1, rtc_now_time.tm_mday,
-            rtc_now_time.tm_hour, rtc_now_time.tm_min, rtc_now_time.tm_sec);
+		sprintf(file_path, "/data/local/tmp/tp_%s_test_data_%s-fail.csv", tcm_hcd->id_info.part_number,get_date_time_str());
 	} else {
 		//test pass result
-		sprintf(file_path, "/data/tp_%s_test_data_%02d%02d%02d-%02d%02d%02d-success.csv", tcm_hcd->id_info.part_number,
-            (rtc_now_time.tm_year + 1900) % 100, rtc_now_time.tm_mon + 1, rtc_now_time.tm_mday,
-            rtc_now_time.tm_hour, rtc_now_time.tm_min, rtc_now_time.tm_sec);
+		sprintf(file_path, "/data/local/tmp/tp_%s_test_data_%s-success.csv", tcm_hcd->id_info.part_number,get_date_time_str());
 	}
-    
-    old_fs = get_fs();
-    set_fs(KERNEL_DS);
-    fp = filp_open(file_path, O_WRONLY | O_CREAT | O_TRUNC, 0);
-    if (IS_ERR_OR_NULL(fp)) {
-        printk("ovt tcm Open log file '%s' failed.\n", file_path);
-
-		snprintf(g_testing_output_buf + strlen(g_testing_output_buf), OUTPUT_TO_CSV_STRING_LEN - strlen(g_testing_output_buf), 
-			"can not open file:%s\n", file_path);
-        set_fs(old_fs);
-        goto sys_err;
-    }
-
+	fp = filp_open(file_path, O_WRONLY | O_CREAT | O_TRUNC, 644);
+	if (IS_ERR_OR_NULL(fp)) {
+		printk("ovt tcm Open log file '%s' failed.\n", file_path);
+		snprintf(g_testing_output_buf + strlen(g_testing_output_buf), OUTPUT_TO_CSV_STRING_LEN - strlen(g_testing_output_buf),
+		"can not open file:%s\n", file_path);
+		goto sys_err;
+	}
 	pos = 0;
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(4, 14, 0)
+	old_fs = get_fs();
+	set_fs(KERNEL_DS);
 	vfs_write(fp, g_testing_output_buf, strlen(g_testing_output_buf), &pos);
 	printk("g_testing_output_buf , strlen is %d\n", (int)strlen(g_testing_output_buf));
 	if (!IS_ERR_OR_NULL(fp)) {
@@ -1717,11 +1740,17 @@ static int testing_do_testing(void)
 		filp_close(fp, NULL);
 		fp = NULL;
 	}
-    set_fs(old_fs);
+  set_fs(old_fs);
+#else
+	kernel_write(fp, g_testing_output_buf, strlen(g_testing_output_buf), &pos);
+	filp_close(fp, NULL);
 #endif
+#endif
+
 #ifdef LIMIT_FROM_CSV_FILE
 sys_err:
 #endif
+
 	if (error_count) {
 		return -1;
 	}
@@ -2126,7 +2155,6 @@ static struct ovt_tcm_module_cb testing_module = {
 	.resume = NULL,
 	.early_suspend = NULL,
 };
-
 
 int testing_module_init(void)
 {

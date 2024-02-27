@@ -23,7 +23,10 @@ export KBUILD_EXTRA_SYMBOLS += $(BSP_MODULES_OUT)/sprd-drm/Module.symvers
 # Build Options
 #
 ccflags-y += -DDEBUG
-
+ifneq ($(BSP_BUILD_VARIANT),user)
+    ccflags-y += -DCFG_OVT_DEBUG
+    $(info +++++++++++++++++++++ovt_ts++++++++++++++++$(BSP_BUILD_VARIANT))
+endif
 #
 # Final Objects
 #
