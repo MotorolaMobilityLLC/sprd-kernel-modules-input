@@ -2390,9 +2390,9 @@ void ili_report_gesture_mode(u8 *buf, int len)
 	case GESTURE_SINGLECLICK:
 		ILI_INFO("Single Click key event\n");
 		if((ilits->sys_gesture_type & 0x0d) == 0x01){
-			input_report_key(input, KEY_GESTURE_POWER, 1);
+			input_report_key(input, BTN_TRIGGER_HAPPY3, 1);
 			input_sync(input);
-			input_report_key(input, KEY_GESTURE_POWER, 0);
+			input_report_key(input, BTN_TRIGGER_HAPPY3, 0);
 			input_sync(input);
 		}else{
 			ILI_ERR("sys_gesture_type err %d\n",ilits->sys_gesture_type);

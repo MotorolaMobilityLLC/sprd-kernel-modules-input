@@ -98,6 +98,7 @@ void ili_input_register(void)
 	input_set_capability(ilits->input, EV_KEY, KEY_GESTURE_Z);
 	input_set_capability(ilits->input, EV_KEY, KEY_GESTURE_C);
 	input_set_capability(ilits->input, EV_KEY, KEY_GESTURE_F);
+	input_set_capability(ilits->input, EV_KEY, BTN_TRIGGER_HAPPY3);
 
 	__set_bit(KEY_GESTURE_POWER, ilits->input->keybit);
 	__set_bit(KEY_GESTURE_UP, ilits->input->keybit);
@@ -113,6 +114,7 @@ void ili_input_register(void)
 	__set_bit(KEY_GESTURE_Z, ilits->input->keybit);
 	__set_bit(KEY_GESTURE_C, ilits->input->keybit);
 	__set_bit(KEY_GESTURE_F, ilits->input->keybit);
+	__set_bit(BTN_TRIGGER_HAPPY3, ilits->input->keybit);
 
 	/* register the input device to input sub-system */
 	if (input_register_device(ilits->input) < 0) {
