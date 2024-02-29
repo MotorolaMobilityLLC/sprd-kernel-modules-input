@@ -246,6 +246,9 @@ STORE_PROTOTYPE(ovt_tcm, irq_en)
 STORE_PROTOTYPE(ovt_tcm, reset)
 SHOW_STORE_PROTOTYPE(ovt_tcm, ts_suspend)
 SHOW_PROTOTYPE(ovt_tcm, ts_info)
+#if WAKEUP_GESTURE
+SHOW_STORE_PROTOTYPE(ovt_tcm, gesture)
+#endif
 #ifdef WATCHDOG_SW
 STORE_PROTOTYPE(ovt_tcm, watchdog)
 #endif
@@ -273,6 +276,9 @@ static struct device_attribute *attrs[] = {
 	ATTRIFY(reset),
 	ATTRIFY(ts_suspend),
 	ATTRIFY(ts_info),
+#if WAKEUP_GESTURE
+	ATTRIFY(gesture),
+#endif
 #ifdef WATCHDOG_SW
 	ATTRIFY(watchdog),
 #endif
@@ -311,6 +317,79 @@ static ssize_t ovt_tcm_sysfs_ts_info_show(struct device *dev,
 	struct ovt_tcm_hcd *tcm_hcd = platform_get_drvdata(to_platform_device(dev));
 	return scnprintf(buf, PAGE_SIZE, "chip id:td4160,fw=%d\n", tcm_hcd->packrat_number);
 }
+
+#if WAKEUP_GESTURE
+void ovt_tcm_gesture_state_switch(void)
+{
+	if (mod_pool.tcm_hcd->sys_gesture_type) {
+		//gesture enable
+		if (!mod_pool.tcm_hcd->wakeup_gesture_enabled) {
+			mod_pool.tcm_hcd->wakeup_gesture_enabled = true;
+			touch_set_state(TOUCH_LOW_POWER_STATE);
+			LOGI(mod_pool.tcm_hcd->pdev->dev.parent, "gesture switch to enable");
+		}
+	}
+	else {
+		//gesture disable
+		if (mod_pool.tcm_hcd->wakeup_gesture_enabled) {
+			mod_pool.tcm_hcd->wakeup_gesture_enabled = false;
+			touch_set_state(TOUCH_DEEP_SLEEP_STATE);
+			LOGI(mod_pool.tcm_hcd->pdev->dev.parent, "gesture switch to disable");
+		}
+	}
+}
+
+static ssize_t ovt_tcm_sysfs_gesture_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct ovt_tcm_hcd *tcm_hcd = platform_get_drvdata(to_platform_device(dev));
+	return scnprintf(buf, PAGE_SIZE, "%d\n", tcm_hcd->sys_gesture_type);
+}
+
+static ssize_t ovt_tcm_sysfs_gesture_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	int value;
+	int err = 0;
+	struct ovt_tcm_hcd *tcm_hcd = platform_get_drvdata(to_platform_device(dev));
+
+	err = sscanf(buf, "%d", &value);
+	if (err < 0) {
+		LOGE(tcm_hcd->pdev->dev.parent, "Failed to convert value\n");
+		return -EINVAL;
+	}
+
+	err = count;
+
+	switch (value) {
+		case 0x20:
+			LOGI(tcm_hcd->pdev->dev.parent, "single tap disable\n");
+			tcm_hcd->sys_gesture_type &= 0xFE;
+			break;
+		case 0x21:
+			LOGI(tcm_hcd->pdev->dev.parent, "single tap enable\n");
+			tcm_hcd->sys_gesture_type |= 0x01;
+			break;
+		case 0x30:
+			LOGI(tcm_hcd->pdev->dev.parent, "double tap disable\n");
+			tcm_hcd->sys_gesture_type &= 0xFD;
+			break;
+		case 0x31:
+			LOGI(tcm_hcd->pdev->dev.parent, "double tap enable\n");
+			tcm_hcd->sys_gesture_type |= 0x02;
+			break;
+		default:
+			LOGI(tcm_hcd->pdev->dev.parent, "unsupport gesture mode type\n");
+			return err;
+	}
+
+	ovt_tcm_gesture_state_switch();
+	LOGI(tcm_hcd->pdev->dev.parent,
+			"sys_gesture_type=%d, ts_gesture=%d\n", tcm_hcd->sys_gesture_type, tcm_hcd->wakeup_gesture_enabled);
+
+	return err;
+}
+#endif
 
 static ssize_t ovt_tcm_sysfs_ts_suspend_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t count)
@@ -4280,7 +4359,7 @@ static int ovt_tcm_probe(struct platform_device *pdev)
 	tcm_hcd->rd_chunk_size = RD_CHUNK_SIZE;
 	tcm_hcd->wr_chunk_size = WR_CHUNK_SIZE;
 	tcm_hcd->is_detected = false;
-	tcm_hcd->wakeup_gesture_enabled = WAKEUP_GESTURE;
+	tcm_hcd->wakeup_gesture_enabled = false;
 
 #ifdef PREDICTIVE_READING
 	tcm_hcd->read_length = MIN_READ_LENGTH;

@@ -383,6 +383,14 @@ enum helper_task {
 	HELP_SEND_ROMBOOT_HDL,
 };
 
+#if WAKEUP_GESTURE
+extern void touch_set_state(int state);
+enum touch_state {
+	TOUCH_DEEP_SLEEP_STATE = 0,
+	TOUCH_LOW_POWER_STATE,
+};
+#endif
+
 struct ovt_tcm_helper {
 	atomic_t task;
 	struct work_struct work;
@@ -501,6 +509,9 @@ struct ovt_tcm_hcd {
 	bool in_hdl_mode;
 	bool is_detected;
 	bool wakeup_gesture_enabled;
+#if WAKEUP_GESTURE
+	uint8_t sys_gesture_type; //0x01 GESTURE_SINGLECLICK  0x02 GESTURE_DOUBLECLICK
+#endif
     bool ovt_tcm_driver_removing;
 	unsigned char sensor_type;
 	unsigned char fb_ready;
