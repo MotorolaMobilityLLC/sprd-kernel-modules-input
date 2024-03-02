@@ -688,6 +688,19 @@ static ssize_t smtc_batch_store(struct device *dev,
         return count;
 }
 
+static ssize_t smtc_flush_store(struct device *dev,
+    struct device_attribute *attr, const char *buf, size_t count)
+{
+    int handle;
+
+    SMTC_LOG_ERR("buf=%s\n", buf);
+    if (sscanf(buf, "%d\n", &handle) != 1)
+                return -EINVAL;
+    SMTC_LOG_ERR("handle = %d\n", handle);
+
+        return count;
+}
+
 //=================================================================================================
 //      Enable/Disable Channels/Phases
 //=================================================================================================
@@ -1029,6 +1042,7 @@ static DEVICE_ATTR(debug,          0664, smtc_debug_show,          smtc_debug_st
 static DEVICE_ATTR(dump_reg,       0444, smtc_dump_reg_show,       NULL);
 static DEVICE_ATTR(irq_gpio,       0444, smtc_irq_gpio_show,       NULL);
 static DEVICE_ATTR(batch,          0664, NULL,                     smtc_batch_store);
+static DEVICE_ATTR(flush,          0664, NULL,                     smtc_flush_store);
 
 static struct attribute *smtc_sysfs_nodes_attr[] =
 {
@@ -1043,6 +1057,7 @@ static struct attribute *smtc_sysfs_nodes_attr[] =
     &dev_attr_dump_reg.attr,
     &dev_attr_irq_gpio.attr,
     &dev_attr_batch.attr,
+    &dev_attr_flush.attr,
 
     NULL,
 };
