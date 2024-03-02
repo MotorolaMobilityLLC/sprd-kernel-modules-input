@@ -1228,6 +1228,20 @@ static ssize_t batch_store(struct device *dev, struct device_attribute *attr, co
         return count;
 }
 
+static ssize_t flush_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
+{
+        struct aw_sar *p_sar = dev_get_drvdata(dev);
+        int handle;
+
+        AWLOGE(p_sar->dev, "buf=%s\n", buf);
+        if (sscanf(buf, "%d\n", &handle) != 1)
+                return -EINVAL;
+        AWLOGE(p_sar->dev,
+                 "handle = %d\n", handle);
+
+        return count;
+}
+
 static ssize_t enable_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
 {
         struct aw_sar *p_sar = dev_get_drvdata(dev);
@@ -1273,6 +1287,7 @@ static DEVICE_ATTR_RW(mode_operation);
 static DEVICE_ATTR_RO(chip_info);
 static DEVICE_ATTR_RO(offset);
 static DEVICE_ATTR_WO(batch);
+static DEVICE_ATTR_WO(flush);
 static DEVICE_ATTR_WO(enable);
 
 static struct attribute *aw_sar_attributes[] = {
@@ -1286,6 +1301,7 @@ static struct attribute *aw_sar_attributes[] = {
 	&dev_attr_chip_info.attr,
 	&dev_attr_offset.attr,
 	&dev_attr_batch.attr,
+	&dev_attr_flush.attr,
 	&dev_attr_enable.attr,
 	NULL
 };
