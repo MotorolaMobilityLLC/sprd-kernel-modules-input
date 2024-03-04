@@ -87,6 +87,8 @@ static const struct of_device_id gf_of_match[] = {
 MODULE_DEVICE_TABLE(of, gf_of_match);
 #endif
 
+static struct gf_device *ggf_dev = NULL;
+
 /* for netlink use */
 static int pid = 0;
 
@@ -572,6 +574,21 @@ static int gf_fb_notifier_callback(struct notifier_block *self,
 
 #endif /* CONFIG_HAS_EARLYSUSPEND */
 
+void gf_fb_set_screen_status(bool st)
+{
+	if (!strstr(ggf_dev->fpname, "gc3976")) {
+		gf_debug(INFO_LOG, "[%s] : gc3976 fingerprint not exist\n", __func__);
+		return;
+	}
+	if (st) {
+		gf_debug(INFO_LOG, "[%s] : lcd on notify\n", __func__);
+		gf_netlink_send(ggf_dev, GF_NETLINK_SCREEN_ON);
+	} else {
+		gf_debug(INFO_LOG, "[%s] : lcd off notify\n", __func__);
+		gf_netlink_send(ggf_dev, GF_NETLINK_SCREEN_OFF);
+	}
+}
+EXPORT_SYMBOL(gf_fb_set_screen_status);
 /* -------------------------------------------------------------------- */
 /* file operation function                                              */
 /* -------------------------------------------------------------------- */
@@ -1180,7 +1197,7 @@ static int gf_platform_probe(struct platform_device *pldev)
 	gf_dev->is_sleep_mode = 0;
 	sprintf(gf_dev->fpname,"%s","NULL");
 	gf_debug(INFO_LOG, "%s probe finished\n", __func__);
-
+	ggf_dev = gf_dev;
 	FUNC_EXIT();
 	return 0;
 
