@@ -801,6 +801,122 @@ out:
 	return ret;
 }
 
+#if NVT_CHARGER_NOTIFIER_CALLBACK
+#if KERNEL_VERSION(4, 1, 0) <= LINUX_VERSION_CODE
+static int8_t nvt_cmd_store(uint8_t cmd)
+{
+	int32_t i, retry = 5;
+	uint8_t buf[4] = {0};
+
+	for (i = 0; i < retry; i++) {
+		if (buf[1] != cmd) {
+			//---set cmd status---
+			buf[0] = EVENT_MAP_HOST_CMD;
+			buf[1] = cmd;
+			CTP_SPI_WRITE(ts->client, buf, 2);
+		}
+
+		msleep(20);
+
+		//---read cmd status---
+		buf[0] = EVENT_MAP_HOST_CMD;
+		buf[1] = 0xFF;
+		CTP_SPI_READ(ts->client, buf, 2);
+
+		if (buf[1] == 0x00)
+			break;
+	}
+
+	if (i == retry) {
+		NVT_ERR("send Cmd 0x%02X failed, buf[1]=0x%02X\n", cmd, buf[1]);
+		return -1;
+	} else {
+		NVT_LOG("send Cmd 0x%02X success, tried %d times\n", cmd, i);
+	}
+
+	return 0;
+}
+
+int8_t nvt_charge_mode(int plugin)
+{
+	int8_t ret = -1;
+
+	NVT_LOG("charger status = %d\n", plugin);
+
+	if (plugin) {
+		ret = nvt_cmd_store(CMD_ENTER_COMMON_USB_PLUGIN);
+	} else {
+		ret = nvt_cmd_store(CMD_ENTER_COMMON_USB_PLUGOUT);
+	}
+
+	return ret;
+}
+
+static int nvt_charger_notifier_callback(struct notifier_block *nb, unsigned long val, void *v)
+{
+	int ret = 0;
+	struct power_supply *psy = NULL;
+	union power_supply_propval prop;
+
+	psy = power_supply_get_by_name("battery");
+	if (!psy) {
+		NVT_ERR("Couldn't get usbpsy\n");
+		return -EINVAL;
+	}
+	if (!strcmp(psy->desc->name, "battery")) {
+		if (psy && val == POWER_SUPPLY_PROP_STATUS) {
+			ret = power_supply_get_property(psy, POWER_SUPPLY_PROP_ONLINE, &prop);
+			if (ret < 0) {
+				NVT_ERR("Couldn't get POWER_SUPPLY_PROP_ONLINE rc=%d\n", ret);
+				return ret;
+			} else {
+				if (ts->usb_plug_status == 2)
+					ts->usb_plug_status = prop.intval;
+				if (ts->usb_plug_status != prop.intval) {
+					NVT_LOG("usb prop.intval =%d\n", prop.intval);
+					ts->usb_plug_status = prop.intval;
+					if (!ts->suspended && (ts->charger_notify_wq != NULL))
+						queue_work(ts->charger_notify_wq, &ts->update_charger);
+				}
+			}
+		}
+	}
+	return 0;
+}
+
+static void nvt_update_charger(struct work_struct *work)
+{
+	int ret = 0;
+
+	mutex_lock(&ts->lock);
+	NVT_LOG("plugin = %d\n", ts->usb_plug_status);
+	ret = nvt_charge_mode(ts->usb_plug_status);
+	if (ret) {
+		NVT_ERR("update charger status failed!\n");
+	}
+	mutex_unlock(&ts->lock);
+
+	return;
+}
+
+void nvt_plat_charger_init(void)
+{
+	int ret = 0;
+	ts->usb_plug_status = 2;
+	ts->charger_notify_wq = create_singlethread_workqueue("nvt_charger_wq");
+	if (!ts->charger_notify_wq) {
+		NVT_ERR("allocate nvt_charger_notify_wq failed\n");
+		return;
+	}
+	INIT_WORK(&ts->update_charger, nvt_update_charger);
+	ts->notifier_charger.notifier_call = nvt_charger_notifier_callback;
+	ret = power_supply_reg_notifier(&ts->notifier_charger);
+	if (ret < 0)
+		NVT_ERR("power_supply_reg_notifier failed\n");
+}
+#endif
+#endif
+
 /*******************************************************
   Create Device Node (Proc Entry)
 *******************************************************/
@@ -1616,6 +1732,9 @@ static irqreturn_t nvt_ts_work_func(int irq, void *data)
 	uint32_t pen_btn1 = 0;
 	uint32_t pen_btn2 = 0;
 	uint32_t pen_battery = 0;
+#if FW_STATUS_REPORT
+	uint16_t fw_status;
+#endif
 
 #if WAKEUP_GESTURE
 	if (bTouchIsAwake == 0) {
@@ -1798,6 +1917,33 @@ static irqreturn_t nvt_ts_work_func(int irq, void *data)
 #endif
 
 	input_sync(ts->input_dev);
+
+#if FW_STATUS_REPORT
+	/* clear nvt fw debug info */
+	fw_status =  (point_data[62] << 8) | point_data[61];
+	if(fw_status != ts->fw_status_report.record ) {
+		ts->fw_status_report.water = (point_data[61] >> 1) & 0x01;
+		ts->fw_status_report.palm = (point_data[61] >> 2) & 0x01;
+		ts->fw_status_report.hopping = (point_data[61] >> 3) & 0x01;
+		ts->fw_status_report.bending = (point_data[61] >> 4) & 0x01;
+		ts->fw_status_report.glove = (point_data[61] >> 5) & 0x01;
+		ts->fw_status_report.gnd_unstable = (point_data[61] >> 6) & 0x01;
+		ts->fw_status_report.charger = (point_data[61] >> 7) & 0x01;
+
+		ts->fw_status_report.re_calibration_type = point_data[62] & 0x07;
+
+		NVT_LOG("WATER:0x%02X, PALM:0x%02X, HOPPING:0x%02X, BENDING:0x%02X, GLOVE:0x%02X, GND:0x%02X, CHARGER:0x%02X, CAL:0x%02X\n",
+				ts->fw_status_report.water,
+				ts->fw_status_report.palm,
+				ts->fw_status_report.hopping,
+				ts->fw_status_report.bending,
+				ts->fw_status_report.glove,
+				ts->fw_status_report.gnd_unstable,
+				ts->fw_status_report.charger,
+				ts->fw_status_report.re_calibration_type);
+	}
+	ts->fw_status_report.record = fw_status;
+#endif
 
 	if (ts->pen_support) {
 /*
@@ -2409,7 +2555,15 @@ static int32_t nvt_ts_probe(struct spi_device *client)
     }
 #endif
 
-
+#if NVT_CHARGER_NOTIFIER_CALLBACK
+#if KERNEL_VERSION(4, 1, 0) <= LINUX_VERSION_CODE
+	nvt_plat_charger_init();
+#endif
+#endif
+#if FW_STATUS_REPORT
+	/* clear nvt fw debug info */
+	memset(&ts->fw_status_report, 0, sizeof(struct nvt_fw_status_report));
+#endif
 	bTouchIsAwake = 1;
 	NVT_LOG("end\n");
 	nvt_irq_enable(true);

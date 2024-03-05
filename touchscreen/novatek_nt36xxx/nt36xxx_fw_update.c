@@ -879,6 +879,10 @@ int32_t nvt_update_firmware(char *firmware_name)
 	if (ret) {
 		NVT_ERR("nvt_get_fw_info failed. (%d)\n", ret);
 	}
+#if NVT_CHARGER_NOTIFIER_CALLBACK
+	/* write back customized command */
+	nvt_charge_mode(ts->usb_plug_status);
+#endif
 
 download_fail:
 	if (!IS_ERR_OR_NULL(bin_map)) {
