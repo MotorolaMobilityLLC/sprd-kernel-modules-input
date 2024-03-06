@@ -534,6 +534,18 @@ struct report_info_block {
 	u8 nDemoPenType		:2;
 };
 
+struct ili_debug_info{//Glove Hopping Charge NoiseWarning Rebase Bending GndUnstable Palm
+	u8 nGlove		    : 1;
+	u8 nHopping		    : 1;
+	u8 nCharge		    : 1;
+	u8 nNoiseWarning	: 1;
+	u8 nRebase		    : 1;
+	u8 nBending		    : 1;
+	u8 nGndUnstable  	: 1;
+	u8 nPalm			: 1;
+};
+
+
 struct file_buffer {
 	char *ptr;
 	char fname[128];
@@ -1016,6 +1028,7 @@ struct ilitek_pen_info {
 #define P5_X_FW_SIGNAL_DATA_MODE			0x03
 #define P5_X_FW_RAW_DATA_MODE				0x08
 #define P5_X_DEMO_PACKET_ID					0x5A
+#define P5_X_DEBUG_INFO_PACKET_ID           0xBB
 #define P5_X_DEMO_AXIS_PACKET_ID			0x5B
 #define P5_X_DEBUG_PACKET_ID				0xA7
 #define P5_X_DEBUG_AXIS_PACKET_ID			0xA8
@@ -1257,6 +1270,7 @@ struct ilitek_ts_data {
 	int gesture_demo_ctrl;
 	struct gesture_symbol ges_sym;
 	struct report_info_block rib;
+	struct ili_debug_info di;
 
 	char* flashName;
 	u16 flash_mid;
@@ -1479,6 +1493,9 @@ extern int ili_fw_upgrade(int op);
 
 /* Prototypes for tddi mp test */
 extern int ili_mp_test_main(char *apk, bool lcm_on);
+
+/* debug info for moto */
+extern void ili_report_touch_debug_info(u8 *buf);
 
 /* Prototypes for tddi core functions */
 extern int ili_touch_esd_gesture_flash(void);
