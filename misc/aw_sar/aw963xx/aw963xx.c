@@ -1008,3 +1008,18 @@ void aw963xx_deinit(struct aw_sar *p_sar)
 
 	AWLOGE(p_sar->dev, "%s ok!", __func__);
 }
+
+void flush_touch_status(struct aw_sar *p_sar)
+{
+        int8_t j = 0;
+
+        for (j = 0; j < AW963XX_CHANNEL_NUM_MAX; j++) {
+                if (p_sar->channels_arr[j].input == NULL) {
+                        continue;
+                }
+
+            input_report_abs(p_sar->channels_arr[j].input, ABS_DISTANCE, 0);
+            input_sync(p_sar->channels_arr[j].input);
+        }
+}
+

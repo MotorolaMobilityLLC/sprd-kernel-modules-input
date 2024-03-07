@@ -688,6 +688,27 @@ static ssize_t smtc_batch_store(struct device *dev,
         return count;
 }
 
+static void flush_touch_status()
+{
+    int ph;
+    phase_p phase;
+    struct input_dev *input;
+
+    for (ph = 0; ph < NUM_PHASES; ph++)
+    {
+        phase = &smtc_phase_table[ph];
+        if (phase->usage != MAIN)
+            continue;
+
+        input = phase->input;
+
+        SMTC_LOG_DBG("%s reports RELEASED in flush", phase->name);
+        phase->state = RELEASED;
+        input_report_abs(input, ABS_DISTANCE, (int)RELEASED);
+        input_sync(input);
+    }
+}
+
 static ssize_t smtc_flush_store(struct device *dev,
     struct device_attribute *attr, const char *buf, size_t count)
 {
@@ -696,6 +717,7 @@ static ssize_t smtc_flush_store(struct device *dev,
     SMTC_LOG_ERR("buf=%s\n", buf);
     if (sscanf(buf, "%d\n", &handle) != 1)
                 return -EINVAL;
+    flush_touch_status();
     SMTC_LOG_ERR("handle = %d\n", handle);
 
         return count;
