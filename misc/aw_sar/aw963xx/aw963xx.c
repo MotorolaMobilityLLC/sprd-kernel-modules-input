@@ -1012,14 +1012,21 @@ void aw963xx_deinit(struct aw_sar *p_sar)
 void flush_touch_status(struct aw_sar *p_sar)
 {
         int8_t j = 0;
+	static bool flush_flag = false;
+        flush_flag = !flush_flag;
 
         for (j = 0; j < AW963XX_CHANNEL_NUM_MAX; j++) {
-                if (p_sar->channels_arr[j].input == NULL) {
-                        continue;
-                }
+            if (p_sar->channels_arr[j].input == NULL) {
+                continue;
+            }
 
-            input_report_abs(p_sar->channels_arr[j].input, ABS_DISTANCE, 0);
-            input_sync(p_sar->channels_arr[j].input);
+	    if (!flush_flag) {
+                input_report_abs(p_sar->channels_arr[j].input, ABS_DISTANCE, 3);
+                input_sync(p_sar->channels_arr[j].input);
+            } else {
+                input_report_abs(p_sar->channels_arr[j].input, ABS_DISTANCE, 4);
+                input_sync(p_sar->channels_arr[j].input);
+            }
         }
 }
 
