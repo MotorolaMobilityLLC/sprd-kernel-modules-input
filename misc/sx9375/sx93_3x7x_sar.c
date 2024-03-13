@@ -693,6 +693,8 @@ static void flush_touch_status()
     int ph;
     phase_p phase;
     struct input_dev *input;
+    static bool flush_flag = false;
+    flush_flag = !flush_flag;
 
     for (ph = 0; ph < NUM_PHASES; ph++)
     {
@@ -703,9 +705,13 @@ static void flush_touch_status()
         input = phase->input;
 
         SMTC_LOG_DBG("%s reports RELEASED in flush", phase->name);
-        phase->state = RELEASED;
-        input_report_abs(input, ABS_DISTANCE, (int)RELEASED);
-        input_sync(input);
+	if (!flush_flag) {
+            input_report_abs(input, ABS_DISTANCE, 3);
+            input_sync(input);
+        } else {
+            input_report_abs(input, ABS_DISTANCE, 4);
+            input_sync(input);
+        }
     }
 }
 
