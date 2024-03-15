@@ -1023,9 +1023,11 @@ void flush_touch_status(struct aw_sar *p_sar)
 	    if (!flush_flag) {
                 input_report_abs(p_sar->channels_arr[j].input, ABS_DISTANCE, 3);
                 input_sync(p_sar->channels_arr[j].input);
+		break;
             } else {
                 input_report_abs(p_sar->channels_arr[j].input, ABS_DISTANCE, 4);
                 input_sync(p_sar->channels_arr[j].input);
+		break;
             }
         }
 }

@@ -708,9 +708,11 @@ static void flush_touch_status()
 	if (!flush_flag) {
             input_report_abs(input, ABS_DISTANCE, 3);
             input_sync(input);
+	    break;
         } else {
             input_report_abs(input, ABS_DISTANCE, 4);
             input_sync(input);
+	    break;
         }
     }
 }
