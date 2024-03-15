@@ -988,6 +988,7 @@ static ssize_t ilitek_proc_fw_cmd_read(struct file *pFile, char __user *buf, siz
 
 	if (wrap_wlen > IOCTL_I2C_BUFF || wrap_rlen > IOCTL_I2C_BUFF) {
 		ILI_ERR("ERROR! R/W len is largn than ioctl buf\n");
+		mutex_unlock(&ilits->touch_mutex);
 		return -ENOTTY;
 	}
 
@@ -995,6 +996,7 @@ static ssize_t ilitek_proc_fw_cmd_read(struct file *pFile, char __user *buf, siz
 		wrap_rbuf = kcalloc(IOCTL_I2C_BUFF, sizeof(u8), GFP_KERNEL);
 		if (ERR_ALLOC_MEM(wrap_rbuf)) {
 			ILI_ERR("Failed to allocate mem\n");
+			mutex_unlock(&ilits->touch_mutex);
 			return -ENOMEM;
 		}
 	}
