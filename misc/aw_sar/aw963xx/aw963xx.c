@@ -1009,7 +1009,7 @@ void aw963xx_deinit(struct aw_sar *p_sar)
 	AWLOGE(p_sar->dev, "%s ok!", __func__);
 }
 
-void flush_touch_status(struct aw_sar *p_sar)
+void flush_touch_status(struct aw_sar *p_sar, int handle)
 {
         int8_t j = 0;
 	static bool flush_flag = false;
@@ -1019,6 +1019,9 @@ void flush_touch_status(struct aw_sar *p_sar)
             if (p_sar->channels_arr[j].input == NULL) {
                 continue;
             }
+
+	    if(j != (handle - 161))
+                continue;
 
 	    if (!flush_flag) {
                 input_report_abs(p_sar->channels_arr[j].input, ABS_DISTANCE, 3);

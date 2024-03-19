@@ -1228,7 +1228,7 @@ static ssize_t batch_store(struct device *dev, struct device_attribute *attr, co
         return count;
 }
 
-extern void flush_touch_status(struct aw_sar *p_sar);
+extern void flush_touch_status(struct aw_sar *p_sar, int handle);
 static ssize_t flush_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
 {
         struct aw_sar *p_sar = dev_get_drvdata(dev);
@@ -1237,7 +1237,7 @@ static ssize_t flush_store(struct device *dev, struct device_attribute *attr, co
         AWLOGE(p_sar->dev, "buf=%s\n", buf);
         if (sscanf(buf, "%d\n", &handle) != 1)
                 return -EINVAL;
-	flush_touch_status(p_sar);
+	flush_touch_status(p_sar, handle);
         AWLOGE(p_sar->dev,
                  "handle = %d\n", handle);
 
