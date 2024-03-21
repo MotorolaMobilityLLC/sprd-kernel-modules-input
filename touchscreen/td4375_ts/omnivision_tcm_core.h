@@ -44,6 +44,8 @@
 #include <linux/notifier.h>
 #endif
 #include <linux/slab.h>
+#include <linux/regulator/consumer.h>
+#include <linux/power_supply.h>
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 20, 0))
 	#include <linux/sched/signal.h>
 #endif
@@ -52,6 +54,7 @@
 #define SPI_MODULE_NAME "omnivision_tcm_spi"
 
 //#define CONFIG_OVT_CHARGER_DETECT
+#define CHARGER_NOTIFIER_CALLBACK	1
 struct ovt_tcm_board_data {
 	bool x_flip;
 	bool y_flip;
@@ -347,6 +350,7 @@ enum report_type {
 	REPORT_STATUS = 0x1b,
 	REPORT_PRINTF = 0x82,
 	REPORT_FW_PRINTF = 0x84,
+	REPORT_ABNORMAL_INFO = 0xE1,
 	REPORT_HDL_ROMBOOT = 0xfd,
 	REPORT_HDL_F35 = 0xfe,
 };
@@ -495,6 +499,18 @@ struct ovt_tcm_features {
 	unsigned char byte_2_reserved:7;
 } __packed;
 
+typedef struct {
+	unsigned short chargerBit              :1; //bit0
+	unsigned short gloveMode               :1; //bit1
+	unsigned short frequencyShift          :1; //bit2
+	unsigned short palmFlg                 :1; //bit3
+	unsigned short bendingMode             :1; //bit4
+	unsigned short gndUnstable             :1; //bit5
+	unsigned short waterMode               :1; //bit6
+	unsigned short baselineFastRelaxCmd    :1; //bit7
+	unsigned short reserved                :8;
+} __attribute__((packed))  TCM_ABNORMAL_INFO_T;
+
 struct ovt_tcm_hcd {
 	pid_t isr_pid;
 	atomic_t command_status;
@@ -574,6 +590,17 @@ struct ovt_tcm_hcd {
 	const struct ovt_tcm_hw_interface *hw_if;
 #ifdef CONFIG_OVT_CHARGER_DETECT
     void *charger_detect_data;
+#endif
+#if CHARGER_NOTIFIER_CALLBACK
+#if KERNEL_VERSION(4, 1, 0) <= LINUX_VERSION_CODE
+/* add_for_charger_start */
+	struct notifier_block notifier_charger;
+	struct workqueue_struct *charger_notify_wq;
+	struct work_struct	update_charger;
+	int usb_plug_status;
+	bool charger_status;
+/*  add_for_charger_end  */
+#endif
 #endif
 	int (*reset)(struct ovt_tcm_hcd *tcm_hcd);
 	int (*reset_n_reinit)(struct ovt_tcm_hcd *tcm_hcd, bool hw, bool update_wd);
@@ -831,5 +858,7 @@ extern int ovt_start_charger_detect(struct ovt_tcm_hcd *tcm_hcd);
 extern int ovt_stop_charger_detect(struct ovt_tcm_hcd *tcm_hcd);
 int  charger_module_init(void);
 #endif
-
+#if CHARGER_NOTIFIER_CALLBACK
+int ovt_tcm_charge_mode(int plugin);
+#endif
 #endif

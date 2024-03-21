@@ -245,6 +245,9 @@ SHOW_PROTOTYPE(ovt_tcm, info_appfw)
 STORE_PROTOTYPE(ovt_tcm, irq_en)
 STORE_PROTOTYPE(ovt_tcm, reset)
 SHOW_STORE_PROTOTYPE(ovt_tcm, ts_suspend)
+#if CHARGER_NOTIFIER_CALLBACK
+SHOW_STORE_PROTOTYPE(ovt_tcm, ts_charger)
+#endif
 SHOW_PROTOTYPE(ovt_tcm, ts_info)
 #if WAKEUP_GESTURE
 SHOW_STORE_PROTOTYPE(ovt_tcm, gesture)
@@ -275,6 +278,9 @@ static struct device_attribute *attrs[] = {
 	ATTRIFY(irq_en),
 	ATTRIFY(reset),
 	ATTRIFY(ts_suspend),
+#if CHARGER_NOTIFIER_CALLBACK
+	ATTRIFY(ts_charger),
+#endif
 	ATTRIFY(ts_info),
 #if WAKEUP_GESTURE
 	ATTRIFY(gesture),
@@ -388,6 +394,44 @@ static ssize_t ovt_tcm_sysfs_gesture_store(struct device *dev,
 			"sys_gesture_type=%d, ts_gesture=%d\n", tcm_hcd->sys_gesture_type, tcm_hcd->wakeup_gesture_enabled);
 
 	return err;
+}
+#endif
+
+#if CHARGER_NOTIFIER_CALLBACK
+static ssize_t ovt_tcm_sysfs_ts_charger_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	unsigned int input;
+	struct ovt_tcm_hcd *tcm_hcd;
+
+	tcm_hcd = g_tcm_hcd;
+
+	if (kstrtouint(buf, 10, &input))
+		return -EINVAL;
+
+	if (input == 1) {
+		ovt_tcm_set_func_charger_connected_en_state(1);
+		tcm_hcd->charger_status = true;
+	}
+	else if (input == 0) {
+		ovt_tcm_set_func_charger_connected_en_state(0);
+		tcm_hcd->charger_status = false;
+	}
+	else
+		return -EINVAL;
+
+	return count;
+}
+
+static ssize_t ovt_tcm_sysfs_ts_charger_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct ovt_tcm_hcd *tcm_hcd;
+
+	tcm_hcd = g_tcm_hcd;
+
+	return sprintf(buf, "%s\n",
+		tcm_hcd->charger_status ? "true" : "false");
 }
 #endif
 
@@ -1051,6 +1095,18 @@ static void ovt_tcm_dispatch_report(struct ovt_tcm_hcd *tcm_hcd)
 		if (tcm_hcd->report_touch)
 			tcm_hcd->report_touch();
 
+	} else if (tcm_hcd->report.id == REPORT_ABNORMAL_INFO) {
+		TCM_ABNORMAL_INFO_T *p_abnormal_info;
+		p_abnormal_info = (TCM_ABNORMAL_INFO_T *)tcm_hcd->report.buffer.buf;
+
+		LOGE(tcm_hcd->pdev->dev.parent, "chargerBit: :%d\n", p_abnormal_info->chargerBit);
+		LOGE(tcm_hcd->pdev->dev.parent, "gloveMode: :%d\n", p_abnormal_info->gloveMode);
+		LOGE(tcm_hcd->pdev->dev.parent, "frequencyShift: :%d\n", p_abnormal_info->frequencyShift);
+		LOGE(tcm_hcd->pdev->dev.parent, "palmFlg: :%d\n", p_abnormal_info->palmFlg);
+		LOGE(tcm_hcd->pdev->dev.parent, "bendingMode: :%d\n", p_abnormal_info->bendingMode);
+		LOGE(tcm_hcd->pdev->dev.parent, "gndUnstable: :%d\n", p_abnormal_info->gndUnstable);
+		LOGE(tcm_hcd->pdev->dev.parent, "waterMode: :%d\n", p_abnormal_info->waterMode);
+		LOGE(tcm_hcd->pdev->dev.parent, "baselineFastRelaxCmd: :%d\n", p_abnormal_info->baselineFastRelaxCmd);
 	} else if (tcm_hcd->report.id == REPORT_FW_PRINTF) {
         int cpy_length;
 		if (tcm_hcd->report.buffer.data_length >= FW_LOG_BUFFER_SIZE - 1) {
@@ -3640,6 +3696,9 @@ static void ovt_tcm_helper_work(struct work_struct *work)
 
 	atomic_set(&helper->task, HELP_NONE);
 	complete(helper->helper_completion);
+#if CHARGER_NOTIFIER_CALLBACK
+	ovt_tcm_charge_mode(tcm_hcd->usb_plug_status);
+#endif
 	return;
 }
 
@@ -4305,6 +4364,84 @@ static int get_bootargs(char *current_mode, char *boot_param)
 	}
 	return 0;
 }
+#if CHARGER_NOTIFIER_CALLBACK
+#if KERNEL_VERSION(4, 1, 0) <= LINUX_VERSION_CODE
+/* add_for_charger_start */
+static int ovt_tcm_charger_notifier_callback(struct notifier_block *nb, unsigned long val, void *v)
+{
+	int ret = 0;
+	struct power_supply *psy = NULL;
+	union power_supply_propval prop;
+
+	psy = power_supply_get_by_name("battery");
+	if (!psy) {
+		LOGE(g_tcm_hcd->pdev->dev.parent, "Couldn't get usbpsy\n");
+		return -EINVAL;
+	}
+	if (!strcmp(psy->desc->name, "battery")) {
+		if (psy && val == POWER_SUPPLY_PROP_STATUS) {
+			ret = power_supply_get_property(psy, POWER_SUPPLY_PROP_ONLINE, &prop);
+			if (ret < 0) {
+				LOGE(g_tcm_hcd->pdev->dev.parent, "Couldn't get POWER_SUPPLY_PROP_ONLINE rc=%d\n", ret);
+				return ret;
+			} else {
+				if (g_tcm_hcd->usb_plug_status == 2)
+					g_tcm_hcd->usb_plug_status = prop.intval;
+				if (g_tcm_hcd->usb_plug_status != prop.intval) {
+					LOGI(g_tcm_hcd->pdev->dev.parent, "usb prop.intval =%d\n", prop.intval);
+					g_tcm_hcd->usb_plug_status = prop.intval;
+					if (!g_tcm_hcd->in_suspend && (g_tcm_hcd->charger_notify_wq != NULL))
+						queue_work(g_tcm_hcd->charger_notify_wq, &g_tcm_hcd->update_charger);
+				}
+			}
+		}
+	}
+	return 0;
+}
+int ovt_tcm_charge_mode(int plugin)
+{
+	int ret = -1;
+
+	LOGI(g_tcm_hcd->pdev->dev.parent, "charger status = %d\n", plugin);
+
+	if (plugin)
+		ret = ovt_tcm_set_func_charger_connected_en_state(1);
+	else
+		ret = ovt_tcm_set_func_charger_connected_en_state(0);
+
+	return ret;
+}
+
+static void ovt_tcm_update_charger(struct work_struct *work)
+{
+	int ret = 0;
+	//mutex_lock(&g_tcm_hcd->rw_ctrl_mutex);
+	LOGI(g_tcm_hcd->pdev->dev.parent, "usb plug status =%d\n", g_tcm_hcd->usb_plug_status);
+	ret = ovt_tcm_charge_mode(g_tcm_hcd->usb_plug_status);
+	if (ret < 0) {
+		LOGE(g_tcm_hcd->pdev->dev.parent, "Write plug in failed\n");
+	}
+	//mutex_unlock(&g_tcm_hcd->rw_ctrl_mutex);
+}
+void ovt_tcm_plat_charger_init(void)
+{
+	int ret = 0;
+	g_tcm_hcd->usb_plug_status = 2;
+	g_tcm_hcd->charger_notify_wq = create_singlethread_workqueue("ovt_tcm_charger_wq");
+	if (!g_tcm_hcd->charger_notify_wq) {
+		LOGE(g_tcm_hcd->pdev->dev.parent, "allocate ovt_tcm_charger_notify_wq failed\n");
+		return;
+	}
+	INIT_WORK(&g_tcm_hcd->update_charger, ovt_tcm_update_charger);
+	g_tcm_hcd->notifier_charger.notifier_call = ovt_tcm_charger_notifier_callback;
+	ret = power_supply_reg_notifier(&g_tcm_hcd->notifier_charger);
+	if (ret < 0)
+		LOGE(g_tcm_hcd->pdev->dev.parent, "power_supply_reg_notifier failed\n");
+}
+/* add_for_charger_end */
+#endif
+#endif
+
 static int ovt_tcm_probe(struct platform_device *pdev)
 {
 	int retval;
@@ -4312,6 +4449,13 @@ static int ovt_tcm_probe(struct platform_device *pdev)
 	struct ovt_tcm_hcd *tcm_hcd;
 	const struct ovt_tcm_board_data *bdata;
 	const struct ovt_tcm_hw_interface *hw_if;
+#if CHARGER_NOTIFIER_CALLBACK
+#if KERNEL_VERSION(4, 1, 0) <= LINUX_VERSION_CODE
+	int ret = 0;
+	struct power_supply *psy = NULL;
+	union power_supply_propval prop;
+#endif
+#endif
 #ifndef USE_SYS_SUSPEND_METHOD
 #ifdef CONFIG_DRM
 	struct drm_panel *active_panel = tcm_get_panel();
@@ -4615,6 +4759,29 @@ prepare_modules:
 	mod_pool.tcm_hcd = tcm_hcd;
 	mod_pool.queue_work = true;
 	queue_work(mod_pool.workqueue, &mod_pool.work);
+#if CHARGER_NOTIFIER_CALLBACK
+#if KERNEL_VERSION(4, 1, 0) <= LINUX_VERSION_CODE
+	/* add_for_charger_start */
+	ovt_tcm_plat_charger_init();
+	/* add_for_charger_end */
+
+	psy = power_supply_get_by_name("battery");
+	if (!psy) {
+		LOGE(g_tcm_hcd->pdev->dev.parent, "Couldn't get usbpsy\n");
+	}
+	if (!strcmp(psy->desc->name, "battery")) {
+		if (psy) {
+			ret = power_supply_get_property(psy, POWER_SUPPLY_PROP_ONLINE, &prop);
+			if (ret < 0) {
+				LOGE(g_tcm_hcd->pdev->dev.parent, "Couldn't get POWER_SUPPLY_PROP_ONLINE rc=%d\n", ret);
+			} else {
+				g_tcm_hcd->usb_plug_status = prop.intval;
+				LOGI(g_tcm_hcd->pdev->dev.parent, "probe usb_plug_status =%d\n", g_tcm_hcd->usb_plug_status);
+			}
+		}
+	}
+#endif
+#endif
 	mutex_unlock(&tcm_hcd->suspend_resume_mutex);
 	return 0;
 
