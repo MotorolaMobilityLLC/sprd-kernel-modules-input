@@ -10,7 +10,7 @@
 #elif defined(CONFIG_AW96XX_MTK_KERNEL5XX_CHARGER_TYPE)
 #define USB_POWER_SUPPLY_NAME   "mtk-master-charger"
 #else
-#define USB_POWER_SUPPLY_NAME   "charger"
+#define USB_POWER_SUPPLY_NAME   "battery"
 #endif
 #else
 #define USB_POWER_SUPPLY_NAME   "battery"
