@@ -3,7 +3,7 @@
 #define _SAR_TYPE_H_
 
 #include "aw_sar_comm_interface.h"
-//#define HEADSET_CALI
+#define HEADSET_CALI 1
 typedef int32_t (*aw_sar_chip_other_operation_t)(void *data);
 typedef void (*aw_sar_chip_other_opera_free_t)(void *data);
 

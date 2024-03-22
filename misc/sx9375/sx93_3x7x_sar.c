@@ -36,7 +36,7 @@
 #define USB_POWER_SUPPLY_NAME   "battery"
 #define CONFIG_USE_POWER_SUPPLY_ONLINE 1
 #endif
-//#define HEADSET_CALI 1
+#define HEADSET_CALI 1
 #ifdef HEADSET_CALI
 extern int headset_register_notifier(struct notifier_block *nb);
 extern int headset_unregister_notifier(struct notifier_block *nb);
@@ -2027,6 +2027,7 @@ static int smtc_probe(struct i2c_client *client, const struct i2c_device_id *id)
         SMTC_LOG_ERR("Unable to register hs_notifier: %d", ret);
         goto FREE_PS_NOTIFIER;
     }
+    self->hs_is_plug = -1;
 #endif
     SMTC_LOG_INF("Done.");
     return 0;
