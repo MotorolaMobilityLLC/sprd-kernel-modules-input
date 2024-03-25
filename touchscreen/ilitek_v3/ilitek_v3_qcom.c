@@ -896,7 +896,11 @@ static int get_bootargs(char *current_mode, char *boot_param)
 
 static int ilitek_plat_probe(void)
 {
-
+#if CHARGER_NOTIFIER_CALLBACK
+	int ret = 0;
+	struct power_supply *psy = NULL;
+	union power_supply_propval prop;
+#endif
 	ILI_INFO("platform probe\n");
 
 #if REGULATOR_POWER
@@ -935,6 +939,21 @@ static int ilitek_plat_probe(void)
 	/* add_for_charger_start */
 	ilitek_plat_charger_init();
 	/* add_for_charger_end */
+	psy = power_supply_get_by_name("battery");
+	if (!psy) {
+		ILI_ERR("Couldn't get usbpsy\n");
+	}
+	if (!strcmp(psy->desc->name, "battery")) {
+		if (psy) {
+			ret = power_supply_get_property(psy, POWER_SUPPLY_PROP_ONLINE, &prop);
+			if (ret < 0) {
+				ILI_ERR("Couldn't get POWER_SUPPLY_PROP_ONLINE rc=%d\n", ret);
+			} else {
+				ilits->usb_plug_status = prop.intval;
+				ILI_INFO("probe usb_plug_status = %d\n", ilits->usb_plug_status);
+			}
+		}
+	}
 #endif
 #endif
 	ILI_INFO("ILITEK Driver loaded successfully!#");
