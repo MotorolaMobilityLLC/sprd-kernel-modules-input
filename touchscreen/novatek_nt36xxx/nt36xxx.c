@@ -2208,7 +2208,12 @@ static int32_t nvt_ts_probe(struct spi_device *client)
 #if ((TOUCH_KEY_NUM > 0) || WAKEUP_GESTURE)
 	int32_t retry = 0;
 #endif
-
+#if NVT_CHARGER_NOTIFIER_CALLBACK
+#if KERNEL_VERSION(4, 1, 0) <= LINUX_VERSION_CODE
+	struct power_supply *psy = NULL;
+	union power_supply_propval prop;
+#endif
+#endif
 #if IS_ENABLED(NVT_DRM_PANEL_NOTIFY) || IS_ENABLED(NVT_QCOM_PANEL_EVENT_NOTIFY)
 	dp = client->dev.of_node;
 
@@ -2558,6 +2563,22 @@ static int32_t nvt_ts_probe(struct spi_device *client)
 #if NVT_CHARGER_NOTIFIER_CALLBACK
 #if KERNEL_VERSION(4, 1, 0) <= LINUX_VERSION_CODE
 	nvt_plat_charger_init();
+
+	psy = power_supply_get_by_name("battery");
+	if (!psy) {
+		NVT_ERR("Couldn't get usbpsy\n");
+	}
+	if (!strcmp(psy->desc->name, "battery")) {
+		if (psy) {
+			ret = power_supply_get_property(psy, POWER_SUPPLY_PROP_ONLINE, &prop);
+			if (ret < 0) {
+				NVT_ERR("Couldn't get POWER_SUPPLY_PROP_ONLINE rc=%d\n", ret);
+			} else {
+				ts->usb_plug_status = prop.intval;
+				NVT_LOG("probe usb plug status=%d\n", ts->usb_plug_status);
+			}
+		}
+	}
 #endif
 #endif
 #if FW_STATUS_REPORT
