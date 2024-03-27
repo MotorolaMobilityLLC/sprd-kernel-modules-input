@@ -2380,7 +2380,7 @@ static int ovt_tcm_enable_irq(struct ovt_tcm_hcd *tcm_hcd, bool en, bool ns)
 
 		if (irq_freed) {
 			retval = request_threaded_irq(tcm_hcd->irq, NULL,
-					ovt_tcm_isr, 0x2008,
+					ovt_tcm_isr, IRQF_TRIGGER_LOW | IRQF_ONESHOT | IRQF_NO_SUSPEND,
 					PLATFORM_DRIVER_NAME, tcm_hcd);
 			if (retval < 0) {
 				LOGE(tcm_hcd->pdev->dev.parent,
