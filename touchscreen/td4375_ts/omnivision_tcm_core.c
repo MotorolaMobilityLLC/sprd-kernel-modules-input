@@ -2509,16 +2509,6 @@ static int ovt_tcm_config_gpio(struct ovt_tcm_hcd *tcm_hcd)
 		}
 	}
 
-	if (bdata->reset_gpio >= 0) {
-		retval = ovt_tcm_set_gpio(tcm_hcd, bdata->reset_gpio,
-				true, 1, !bdata->reset_on_state);
-		if (retval < 0) {
-			LOGE(tcm_hcd->pdev->dev.parent,
-					"Failed to configure reset GPIO\n");
-			goto err_set_gpio_reset;
-		}
-	}
-
 	if (bdata->power_gpio >= 0) {
 		gpio_set_value(bdata->power_gpio, bdata->power_on_state);
 		msleep(bdata->power_delay_ms);
@@ -2532,10 +2522,6 @@ static int ovt_tcm_config_gpio(struct ovt_tcm_hcd *tcm_hcd)
 	}
 
 	return 0;
-
-err_set_gpio_reset:
-	if (bdata->power_gpio >= 0)
-		ovt_tcm_set_gpio(tcm_hcd, bdata->power_gpio, false, 0, 0);
 
 err_set_gpio_power:
 	if (bdata->irq_gpio >= 0)
@@ -4960,8 +4946,8 @@ static int ovt_tcm_remove(struct platform_device *pdev)
 	if (bdata->power_gpio >= 0)
 		ovt_tcm_set_gpio(tcm_hcd, bdata->power_gpio, false, 0, 0);
 
-	if (bdata->reset_gpio >= 0)
-		ovt_tcm_set_gpio(tcm_hcd, bdata->reset_gpio, false, 0, 0);
+	/*if (bdata->reset_gpio >= 0)
+		ovt_tcm_set_gpio(tcm_hcd, bdata->reset_gpio, false, 0, 0);*/
 
 	ovt_tcm_enable_regulator(tcm_hcd, false);
 
