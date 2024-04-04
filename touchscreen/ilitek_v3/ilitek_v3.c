@@ -105,9 +105,11 @@ static void ilitek_resume_by_ddi_work(struct work_struct *work)
 {
 	mutex_lock(&ilits->touch_mutex);
 
-	if (ilits->gesture)
-		disable_irq_wake(ilits->irq_num);
-
+	if (ilits->gesture){
+		disable_irq_wake(ilits->irq_eic);
+		ili_eic_irq_disable();
+		ili_pinctrl_select_irq_gpio(ilits);
+	}
 	/* Set tp as demo mode and reload code if it's iram. */
 	ilits->actual_tp_mode = P5_X_FW_AP_MODE;
 	if (ilits->fw_upgrade_mode == UPGRADE_IRAM) {
@@ -176,8 +178,9 @@ void ili_resume_by_ddi(void)
 #endif
 	queue_work(resume_by_ddi_wq, &(resume_by_ddi_work));
 	} else {
-		if (ilits->gesture)
-			disable_irq_wake(ilits->irq_num);
+		if (ilits->gesture){
+			disable_irq_wake(ilits->irq_eic);
+		}
 		ilits->actual_tp_mode = P5_X_FW_AP_MODE;
 
 	if (ilits->cascade_info_block.nNum != 0) {
@@ -194,6 +197,7 @@ void ili_resume_by_ddi(void)
 
 	mutex_unlock(&ilits->touch_mutex);
 }
+EXPORT_SYMBOL(ili_resume_by_ddi);
 #endif
 
 #ifdef ROI
@@ -609,8 +613,10 @@ int ili_sleep_handler(int mode)
 
 		if ((ilits->gesture) || (ilits->prox_face_mode == PROXIMITY_SUSPEND_RESUME)) {
 			ili_switch_tp_mode(P5_X_FW_GESTURE_MODE);
-			enable_irq_wake(ilits->irq_num);
-			ili_irq_enable();
+			enable_irq_wake(ilits->irq_eic);
+			ili_irq_disable();
+			ili_eic_irq_enable();
+			ili_pinctrl_select_irq_eic(ilits);
 		} else {
 			if (ili_ic_func_ctrl("sleep", SLEEP_IN) < 0)
 				ILI_ERR("Write sleep in cmd failed\n");
@@ -631,8 +637,10 @@ int ili_sleep_handler(int mode)
 
 		if ((ilits->gesture) || (ilits->prox_face_mode == PROXIMITY_SUSPEND_RESUME)) {
 			ili_switch_tp_mode(P5_X_FW_GESTURE_MODE);
-			enable_irq_wake(ilits->irq_num);
-			ili_irq_enable();
+			enable_irq_wake(ilits->irq_eic);
+			ili_irq_disable();
+			ili_eic_irq_enable();
+			ili_pinctrl_select_irq_eic(ilits);
 		} else {
 			if (ili_ic_func_ctrl("sleep", DEEP_SLEEP_IN) < 0)
 				ILI_ERR("Write deep sleep in cmd failed\n");
@@ -644,9 +652,9 @@ int ili_sleep_handler(int mode)
 		ILI_INFO("TP resume start\n");
 		ilits->tp_suspend = false;
 		ilits->report = ENABLE;
-		if (ilits->gesture)
-			disable_irq_wake(ilits->irq_num);
-
+		if (ilits->gesture){
+			disable_irq_wake(ilits->irq_eic);
+		}
 		/* Set tp as demo mode and reload code if it's iram. */
 		ilits->actual_tp_mode = P5_X_FW_AP_MODE;
 		if (ilits->fw_upgrade_mode == UPGRADE_IRAM) {
@@ -680,6 +688,8 @@ int ili_sleep_handler(int mode)
 		ili_wq_ctrl(WQ_ESD, ENABLE);
 		ili_wq_ctrl(WQ_BAT, ENABLE);
 		ili_irq_enable();
+		ili_eic_irq_disable();
+		ili_pinctrl_select_irq_gpio(ilits);
 		break;
 	default:
 		ILI_ERR("Unknown sleep mode, %d\n", mode);
@@ -1518,6 +1528,7 @@ int ili_tddi_init(void)
 	mutex_init(&ilits->debug_read_mutex);
 	init_waitqueue_head(&(ilits->inq));
 	spin_lock_init(&ilits->irq_spin);
+	spin_lock_init(&ilits->irq_lock);
 	init_completion(&ilits->esd_done);
 
 	atomic_set(&ilits->ice_stat, DISABLE);

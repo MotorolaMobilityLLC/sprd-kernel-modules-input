@@ -227,9 +227,13 @@ static int ilitek_plat_gpio_register(void)
 
 	ilits->tp_int = of_get_named_gpio(dev_node, DTS_INT_GPIO, 0);
 	ilits->tp_rst = of_get_named_gpio(dev_node, DTS_RESET_GPIO, 0);
+	ilits->irq_use_eic = of_get_named_gpio_flags(dev_node, "touch,eic-irq-gpio", 0, &ilits->irq_use_eic_flags);
+	if(ilits->irq_use_eic < 0)
+		ILI_ERR("Unable to get eic_irq_gpio");
 
 	ILI_INFO("TP INT: %d\n", ilits->tp_int);
 	ILI_INFO("TP RESET: %d\n", ilits->tp_rst);
+	ILI_INFO("TP EIC: %d\n", ilits->irq_use_eic);
 
 	if (!gpio_is_valid(ilits->tp_int)) {
 		ILI_ERR("Invalid INT gpio: %d\n", ilits->tp_int);
@@ -262,12 +266,65 @@ static int ilitek_plat_gpio_register(void)
 			goto out;
 		}
 	}
+	if (!gpio_is_valid(ilits->irq_use_eic)) {
+		ILI_ERR("Invalid  eic gpio \n");
+		return -EBADR;
+	}
+	ret = gpio_request(ilits->irq_use_eic, "TP_EIC");
+	if (ret) {
+		ILI_ERR("Request EIC GPIO failed, ret = %d\n", ret);
+		gpio_free(ilits->irq_use_eic);
+		ret = gpio_request(ilits->irq_use_eic, "TP_EIC");
+		if (ret < 0) {
+			ILI_ERR("Retrying request RESET GPIO still failed , ret = %d\n", ret);
+		}
+	}else{
+		ret = gpio_direction_input(ilits->irq_use_eic);
+		if (ret) {
+			ILI_ERR("[GPIO]set_direction for eic irq gpio failed\n");
+		}
+	}
 
 out:
 	gpio_direction_input(ilits->tp_int);
 	return ret;
 }
 
+int ili_pinctrl_select_irq_eic(struct ilitek_ts_data  *ts)
+{
+	int ret = 0;
+	if (ts->pinctrl && ts->pins_extconf0)
+		ret = pinctrl_select_state(ts->pinctrl, ts->pins_extconf0);
+	return ret;
+}
+int ili_pinctrl_select_irq_gpio(struct ilitek_ts_data *ts)
+{
+	int ret = 0;
+	if (ts->pinctrl && ts->pins_extconf1)
+		ret = pinctrl_select_state(ts->pinctrl, ts->pins_extconf1);
+	return ret;
+}
+void ili_eic_irq_disable(void)
+{
+	unsigned long irqflags;
+	spin_lock_irqsave(&ilits->irq_lock, irqflags);
+	if (!ilits->irq_disabled) {
+		disable_irq_nosync(ilits->irq_eic);
+		ilits->irq_disabled = true;
+	}
+	spin_unlock_irqrestore(&ilits->irq_lock, irqflags);
+}
+
+void ili_eic_irq_enable(void)
+{
+	unsigned long irqflags = 0;
+	spin_lock_irqsave(&ilits->irq_lock, irqflags);
+	if (ilits->irq_disabled) {
+		enable_irq(ilits->irq_eic);
+		ilits->irq_disabled = false;
+	}
+	spin_unlock_irqrestore(&ilits->irq_lock, irqflags);
+}
 void ili_irq_disable(void)
 {
 	unsigned long flag;
@@ -314,7 +371,7 @@ out:
 
 static irqreturn_t ilitek_plat_isr_top_half(int irq, void *dev_id)
 {
-	if (irq != ilits->irq_num) {
+	if ( irq != ilits->irq_eic && irq != ilits->irq_num ) {
 		ILI_ERR("Incorrect irq number (%d)\n", irq);
 		return IRQ_NONE;
 	}
@@ -368,7 +425,25 @@ void ili_irq_unregister(void)
 {
 	devm_free_irq(ilits->dev, ilits->irq_num, NULL);
 }
-
+void ili_pinctrl_init(struct device* dev)
+{
+	int ret ;
+	ilits->pinctrl = devm_pinctrl_get(dev);
+	if (IS_ERR_OR_NULL(ilits->pinctrl)) {
+		ILI_ERR("Failed to get pinctrl, please check dts\n");
+		ret = PTR_ERR(ilits->pinctrl);
+	}
+	ilits->pins_extconf0 = pinctrl_lookup_state(ilits->pinctrl, "tp_extconf0");
+	if (IS_ERR_OR_NULL(ilits->pins_extconf0)) {
+		ILI_ERR("Pin state[extconf0] not found\n");
+		ret = PTR_ERR(ilits->pins_extconf0);
+	}
+	ilits->pins_extconf1 = pinctrl_lookup_state(ilits->pinctrl, "tp_extconf1");
+	if (IS_ERR_OR_NULL(ilits->pins_extconf1)) {
+		ILI_ERR("Pin state[extconf1] not found");
+		ret = PTR_ERR(ilits->pins_extconf1);
+	}
+}
 int ili_irq_register(int type)
 {
 	int ret = 0;
@@ -396,6 +471,12 @@ int ili_irq_register(int type)
 	if (ret != 0)
 		ILI_ERR("Failed to register irq handler, irq = %d, ret = %d\n", ilits->irq_num, ret);
 
+	ilits->irq_eic = gpio_to_irq(ilits->irq_use_eic);
+	ilits->irq_use_eic_flags = IRQF_TRIGGER_FALLING | IRQF_ONESHOT | IRQF_NO_SUSPEND;
+	ILI_INFO("irq_eic:%d, eic_flag:%x", ilits->irq_eic, ilits->irq_use_eic_flags);
+	ret = devm_request_threaded_irq(ilits->dev,ilits->irq_eic,ilitek_plat_isr_top_half,ilitek_plat_isr_bottom_half,ilits->irq_use_eic_flags,"ilitekeic", NULL);
+	ILI_INFO("irq handler register %d\n", ret);
+	ili_eic_irq_disable();
 	atomic_set(&ilits->irq_stat, ENABLE);
 
 	return ret;
@@ -911,6 +992,7 @@ static int ilitek_plat_probe(void)
 		ILI_ERR("Register gpio failed\n");
 
 	ili_irq_register(ilits->irq_tirgger_type);
+	ili_pinctrl_init(ilits->dev);
 
 	if (ili_tddi_init() < 0) {
 		ILI_ERR("ILITEK Driver probe failed\n");

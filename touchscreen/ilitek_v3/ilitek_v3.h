@@ -42,6 +42,7 @@
 #include <linux/regulator/consumer.h>
 #include <linux/power_supply.h>
 #include <linux/fs.h>
+#include <linux/pinctrl/pinctrl.h>
 #ifdef CONFIG_COMPAT
 #include <linux/compat.h>
 #endif
@@ -1219,7 +1220,17 @@ struct ilitek_ts_data {
 	int irq_tirgger_type;
 	int tp_rst;
 	int tp_int;
+	int irq_use_eic;
 	int wait_int_timeout;
+	u32 irq_use_eic_flags;
+	struct pinctrl* pinctrl;
+	struct pinctrl_state* pins_extconf0;
+	struct pinctrl_state* pins_extconf1;
+	int irq_eic;
+	spinlock_t irq_lock;
+	bool irq_disabled;
+
+
 
 	int finger;
 	u8 customertype_off;
@@ -1620,6 +1631,10 @@ extern void ili_tp_reset(void);
 extern void ili_irq_unregister(void);
 extern int ili_irq_register(int type);
 extern void ilitek_plat_charger_init(void);
+extern void ili_eic_irq_disable(void);
+extern void ili_eic_irq_enable(void);
+extern int ili_pinctrl_select_irq_eic(struct ilitek_ts_data  *ts);
+extern int ili_pinctrl_select_irq_gpio(struct ilitek_ts_data  *ts);
 
 #if SUSPEND_RESUME_SUPPORT
 #if QCOM_PANEL_SUSPEND_RESUME | (defined(__DRM_PANEL_H__) && defined(DRM_PANEL_EARLY_EVENT_BLANK))
