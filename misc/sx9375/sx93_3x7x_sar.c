@@ -2223,7 +2223,7 @@ MODULE_DEVICE_TABLE(i2c, smtc_idtable);
 static struct of_device_id smtc_match_table[] =
 {
     { .compatible = SMTC_COMPATIBLE_NAME,},
-    { },
+    { }
 };
 
 static const struct dev_pm_ops smtc_pm_ops =
