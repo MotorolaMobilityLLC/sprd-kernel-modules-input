@@ -3234,7 +3234,7 @@ static int get_bootargs(char *current_mode, char *boot_param)
 	const char *cmd_line;
 	char *s = NULL;
 	int ret = 0;
-	memset(current_mode, 0, sizeof(char) * 100);
+	memset(current_mode, 0, sizeof(char) * 40);
 	np = of_find_node_by_path("/chosen");
 
 	if (!np) {
@@ -3273,7 +3273,7 @@ static int32_t __init nvt_driver_init(void)
 {
 	int32_t ret = 0;
 	ret = get_bootargs(lcd_name, "lcd_name");
-	if (!ret && !(strstr(lcd_name, NT36528_LCD_NAME)))
+	if (!ret && strncmp(NT36528_LCD_NAME, lcd_name, strlen(lcd_name)))
 	{
 		NVT_ERR("%s: match %s fail,return\n",__func__,lcd_name);
 		return 0;
