@@ -81,6 +81,7 @@
 #define USE_SYS_SUSPEND_METHOD
 
 struct ovt_tcm_hcd *g_tcm_hcd;
+char lcd_name[40];
 #if SPEED_UP_RESUME
 static void speedup_resume(struct work_struct *work);
 #endif
@@ -321,7 +322,12 @@ static ssize_t ovt_tcm_sysfs_ts_info_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
 	struct ovt_tcm_hcd *tcm_hcd = platform_get_drvdata(to_platform_device(dev));
-	return scnprintf(buf, PAGE_SIZE, "chip id:td4160,fw=%d\n", tcm_hcd->packrat_number);
+	if(strncmp(LCD_NAME2, lcd_name, strlen(lcd_name)) == 0)
+		return scnprintf(buf, PAGE_SIZE, "chip id:td4376,fw=%d\n", tcm_hcd->packrat_number);
+	else if (strncmp(LCD_NAME1, lcd_name, strlen(lcd_name)) == 0)
+		return scnprintf(buf, PAGE_SIZE, "chip id:td4160,fw=%d\n", tcm_hcd->packrat_number);
+	else
+		return scnprintf(buf, PAGE_SIZE, "chip id:tdxxxx,fw=%d\n", tcm_hcd->packrat_number);
 }
 
 #if WAKEUP_GESTURE
@@ -1099,14 +1105,14 @@ static void ovt_tcm_dispatch_report(struct ovt_tcm_hcd *tcm_hcd)
 		TCM_ABNORMAL_INFO_T *p_abnormal_info;
 		p_abnormal_info = (TCM_ABNORMAL_INFO_T *)tcm_hcd->report.buffer.buf;
 
-		LOGE(tcm_hcd->pdev->dev.parent, "chargerBit: :%d\n", p_abnormal_info->chargerBit);
-		LOGE(tcm_hcd->pdev->dev.parent, "gloveMode: :%d\n", p_abnormal_info->gloveMode);
-		LOGE(tcm_hcd->pdev->dev.parent, "frequencyShift: :%d\n", p_abnormal_info->frequencyShift);
-		LOGE(tcm_hcd->pdev->dev.parent, "palmFlg: :%d\n", p_abnormal_info->palmFlg);
-		LOGE(tcm_hcd->pdev->dev.parent, "bendingMode: :%d\n", p_abnormal_info->bendingMode);
-		LOGE(tcm_hcd->pdev->dev.parent, "gndUnstable: :%d\n", p_abnormal_info->gndUnstable);
-		LOGE(tcm_hcd->pdev->dev.parent, "waterMode: :%d\n", p_abnormal_info->waterMode);
-		LOGE(tcm_hcd->pdev->dev.parent, "baselineFastRelaxCmd: :%d\n", p_abnormal_info->baselineFastRelaxCmd);
+		LOGI(tcm_hcd->pdev->dev.parent, "chargerBit: :%d\n", p_abnormal_info->chargerBit);
+		LOGI(tcm_hcd->pdev->dev.parent, "gloveMode: :%d\n", p_abnormal_info->gloveMode);
+		LOGI(tcm_hcd->pdev->dev.parent, "frequencyShift: :%d\n", p_abnormal_info->frequencyShift);
+		LOGI(tcm_hcd->pdev->dev.parent, "palmFlg: :%d\n", p_abnormal_info->palmFlg);
+		LOGI(tcm_hcd->pdev->dev.parent, "bendingMode: :%d\n", p_abnormal_info->bendingMode);
+		LOGI(tcm_hcd->pdev->dev.parent, "gndUnstable: :%d\n", p_abnormal_info->gndUnstable);
+		LOGI(tcm_hcd->pdev->dev.parent, "waterMode: :%d\n", p_abnormal_info->waterMode);
+		LOGI(tcm_hcd->pdev->dev.parent, "baselineFastRelaxCmd: :%d\n", p_abnormal_info->baselineFastRelaxCmd);
 	} else if (tcm_hcd->report.id == REPORT_FW_PRINTF) {
         int cpy_length;
 		if (tcm_hcd->report.buffer.data_length >= FW_LOG_BUFFER_SIZE - 1) {
@@ -5001,7 +5007,8 @@ static int __init ovt_tcm_module_init(void)
 	int retval;
 	get_bootargs(lcd_name,"lcd_name");
 	printk(KERN_ERR "lcd_name %s\n",lcd_name);
-	if(strncmp(LCD_NAME1, lcd_name, strlen(lcd_name)) && strncmp(LCD_NAME, lcd_name, strlen(lcd_name))){
+	if(strncmp(LCD_NAME2, lcd_name, strlen(lcd_name)) && strncmp(LCD_NAME1, lcd_name, strlen(lcd_name))
+			&& strncmp(LCD_NAME, lcd_name, strlen(lcd_name))){
 		printk(KERN_ERR "%s: match %s fail,return\n",__func__,lcd_name);
 		return 0;
 	}

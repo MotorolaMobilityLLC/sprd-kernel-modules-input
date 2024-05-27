@@ -44,13 +44,19 @@ struct ovt_tcm_test_threshold {
 	int32_t open_short_min_limits[TX_NUM_MAX*RX_NUM_MAX];
 	int32_t open_short_max_limits[TX_NUM_MAX*RX_NUM_MAX];
 	int32_t lcd_noise_max_limits[TX_NUM_MAX*RX_NUM_MAX];
+	int32_t open_pt17_max_limits[TX_NUM_MAX*RX_NUM_MAX];
+	int32_t short_pt18_min_limits[TX_NUM_MAX*RX_NUM_MAX];
+	int32_t short_pt18_max_limits[TX_NUM_MAX*RX_NUM_MAX];
 };
 
 #define CSV_RAW_DATA_MIN_ARRAY		"threshold,raw_data_min_array"
 #define CSV_RAW_DATA_MAX_ARRAY		"threshold,raw_data_max_array"
 #define CSV_OPEN_SHORT_MIN_ARRAY	"threshold,open_short_min_array"
 #define CSV_OPEN_SHORT_MAX_ARRAY	"threshold,open_short_max_array"
-#define CSV_LCD_NOISE_ARRAY			"threshold,lcd_noise_max_array"
+#define CSV_LCD_NOISE_ARRAY		"threshold,lcd_noise_max_array"
+#define CSV_PT17_MAX_ARRAY		"threshold,pt17_max_array"
+#define CSV_PT18_MIN_ARRAY		"threshold,pt18_min_array"
+#define CSV_PT18_MAX_ARRAY		"threshold,pt18_max_array"
 extern int ovt_tcm_parse_csvfile(char *file_path, char *target_name, int32_t  *data, int rows, int columns);
 extern void ovt_tcm_store_to_buf(char *buffer, char* format, ...);
 extern void ovt_tcm_store_to_file(struct file *fp, char* format, ...);

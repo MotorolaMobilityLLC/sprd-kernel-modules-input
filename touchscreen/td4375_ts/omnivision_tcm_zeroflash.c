@@ -44,6 +44,7 @@
 // #define FW_IMAGE_NAME "omnivision/hdl_firmware.img"
 #define FW_IMAGE_NAME "hdl_firmware_4lane.img"
 #define FW_IMAGE_NAME1 "tcl_td4160.img"
+#define FW_IMAGE_NAME2 "tm_td4376.img"
 
 #define BOOT_CONFIG_ID "BOOT_CONFIG"
 
@@ -536,8 +537,10 @@ static int zeroflash_get_fw_image(void)
 		zeroflash_hcd->image = NULL;
 	}
 
-	if(strcmp(lcd_name, LCD_NAME) == 0)
-			fw_name = FW_IMAGE_NAME;
+	if(strcmp(lcd_name, LCD_NAME2) == 0)
+		fw_name = FW_IMAGE_NAME2;
+	else if (strcmp(lcd_name, LCD_NAME) == 0)
+		fw_name = FW_IMAGE_NAME;
 	else if (strcmp(lcd_name, LCD_NAME1) == 0)
 		fw_name = FW_IMAGE_NAME1;
 	else

@@ -120,7 +120,8 @@ struct ovt_tcm_board_data {
 #define HOST_DOWNLOAD_TIMEOUT_MS 5000
 #define LCD_NAME "lcd_td4375_dijin_4lane_mipi_fhd"
 #define LCD_NAME1 "lcd_td4160_tcl_120hz_mipi_hd"
-static char lcd_name[40];
+#define LCD_NAME2 "lcd_td4376_tm_120hz_mipi_fhd"
+extern char lcd_name[40];
 
 #define LOGx(func, dev, log, ...) \
 	func(dev, "%s info: " log, __func__, ##__VA_ARGS__)

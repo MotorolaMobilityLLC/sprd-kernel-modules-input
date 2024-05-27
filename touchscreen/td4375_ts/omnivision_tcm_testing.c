@@ -305,7 +305,10 @@ static int ovt_tcm_get_thr_from_csvfile(void)
 	// if (tcm_hcd->hw_if->bdata->project_id) {
 	// 	strncat(file_path, tcm_hcd->hw_if->bdata->project_id, sizeof(file_path));
 	// }
-	strncat(file_path, "cap_limits.csv", sizeof(file_path) - strlen(file_path) - 1);
+	if(strcmp(lcd_name, LCD_NAME2) == 0)
+		strncat(file_path, "cap_limits_td4376.csv", sizeof(file_path) - strlen(file_path) - 1);
+	else
+		strncat(file_path, "cap_limits.csv", sizeof(file_path) - strlen(file_path) - 1);
 
 	app_info = &tcm_hcd->app_info;
 	rows = le2_to_uint(app_info->num_of_image_rows);
@@ -347,6 +350,24 @@ static int ovt_tcm_get_thr_from_csvfile(void)
 		return ret;
 	}
 
+	ret = ovt_tcm_parse_csvfile(file_path, CSV_PT17_MAX_ARRAY,
+			threshold->open_pt17_max_limits, rows, cols);
+	if (ret) {
+		printk("ovt tcm csv parser: %s: Failed get %s \n", __func__, CSV_PT17_MAX_ARRAY);
+		return ret;
+	}
+	ret = ovt_tcm_parse_csvfile(file_path, CSV_PT18_MAX_ARRAY,
+			threshold->short_pt18_max_limits, rows, cols);
+	if (ret) {
+		printk("ovt tcm csv parser: %s: Failed get %s \n", __func__, CSV_PT18_MAX_ARRAY);
+		return ret;
+	}
+	ret = ovt_tcm_parse_csvfile(file_path, CSV_PT18_MIN_ARRAY,
+			threshold->short_pt18_min_limits, rows, cols);
+	if (ret) {
+		printk("ovt tcm csv parser: %s: Failed get %s \n", __func__, CSV_PT18_MIN_ARRAY);
+		return ret;
+	}
 	printk("ovt tcm csv parser: %s: success \n", __func__);
 	return 0;
 }
@@ -1685,16 +1706,28 @@ static int testing_do_testing(void)
 	if (retval < 0) {
 		error_count++;
 	}
-
 	retval = testing_do_test_item(TEST_PT10_DELTA_NOISE, TX_NUM_MAX, RX_NUM_MAX, NULL, 
 		testing_hcd->testing_csv_threshold.lcd_noise_max_limits, fp, g_testing_output_buf, OUTPUT_TO_CSV_STRING_LEN);
 	if (retval < 0) {
 		error_count++;
 	}
-	retval = testing_do_test_item(TEST_PT11_OPEN_DETECTION, TX_NUM_MAX, RX_NUM_MAX, testing_hcd->testing_csv_threshold.open_short_min_limits, 
-		testing_hcd->testing_csv_threshold.open_short_max_limits, fp, g_testing_output_buf, OUTPUT_TO_CSV_STRING_LEN);
-	if (retval < 0) {
-		error_count++;
+	if(strcmp(lcd_name, LCD_NAME2) == 0) {
+		retval = testing_do_test_item(TEST_PT17_ADC_RANGE, TX_NUM_MAX, RX_NUM_MAX, NULL,
+			testing_hcd->testing_csv_threshold.open_pt17_max_limits, fp, g_testing_output_buf, OUTPUT_TO_CSV_STRING_LEN);
+		if (retval < 0) {
+			error_count++;
+		}
+		retval = testing_do_test_item(TEST_PT18_HYBRID_ABS_RAW, TX_NUM_MAX, RX_NUM_MAX, testing_hcd->testing_csv_threshold.short_pt18_min_limits,
+			testing_hcd->testing_csv_threshold.short_pt18_max_limits, fp, g_testing_output_buf, OUTPUT_TO_CSV_STRING_LEN);
+		if (retval < 0) {
+			error_count++;
+		}
+	} else {
+		retval = testing_do_test_item(TEST_PT11_OPEN_DETECTION, TX_NUM_MAX, RX_NUM_MAX, testing_hcd->testing_csv_threshold.open_short_min_limits,
+			testing_hcd->testing_csv_threshold.open_short_max_limits, fp, g_testing_output_buf, OUTPUT_TO_CSV_STRING_LEN);
+		if (retval < 0) {
+			error_count++;
+		}
 	}
 #else
 	retval = testing_do_test_item(TEST_PT7_DYNAMIC_RANGE, rows, cols, pt7_low_limits_new, 
