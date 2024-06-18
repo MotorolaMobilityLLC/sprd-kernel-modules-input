@@ -196,6 +196,27 @@ struct cts_firmware_status {
     uint16_t water_mode:1;
     uint16_t ground:1;
 };
+
+struct firmware_status {
+    uint16_t resever:1;
+    uint16_t palm:1;
+    uint16_t gndunstable:1;
+    uint16_t bending:1;
+    uint16_t negdiffbaseupdate:1;
+    uint16_t noisewarning:1;
+    uint16_t charge:1;
+    uint16_t glove:1;
+
+    uint16_t hoppingdx_1:1;
+    uint16_t hoppingdx_2:1;
+    uint16_t earlinestatus:1;
+    uint16_t edgeinhibitionscreenmode_1:1;
+    uint16_t edgeinhibitionscreenmode_2:1;
+    uint16_t scan_error:1;
+    uint16_t waterflag:1;
+    uint16_t gamemode:1;
+};
+
 /** Touch debug messages read back from chip [40 bytes] */
 struct cts_touch_debug_msg {
     u8 protocol_version;

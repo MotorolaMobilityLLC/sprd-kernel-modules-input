@@ -36,7 +36,7 @@
 /* #define CFG_CTS_FORCE_UP */
 /* #define CFG_CTS_HEARTBEAT_MECHANISM */
 
-/* #define CFG_CTS_PALM_DETECT */
+#define CFG_CTS_PALM_DETECT
 #ifdef CFG_CTS_PALM_DETECT
 #define CFG_CTS_PALM_EVENT                  240
 #define CFG_CTS_PALM_ID                     0x80

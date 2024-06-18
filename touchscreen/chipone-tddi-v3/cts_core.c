@@ -10,7 +10,7 @@
 #include "cts_charger_detect.h"
 #include "cts_earjack_detect.h"
 #include "cts_tcs.h"
-
+u16 firmware_status_prv = 0;
 
 #ifdef CONFIG_CTS_I2C_HOST
 static int cts_i2c_writeb(const struct cts_device *cts_dev,
@@ -1383,6 +1383,34 @@ static int cts_init_fwdata(struct cts_device *cts_dev)
     return 0;
 }
 
+void cts_show_firmware_status_msg(void *debug)
+{
+    struct cts_touch_debug_msg *msg = (struct cts_touch_debug_msg *)debug;
+    struct firmware_status *status = (struct firmware_status *)
+            &msg->firmware_status;
+
+    cts_info("Printing firmware status bits...");
+    cts_info("Resever: %d", status->resever);
+    cts_info("Palm: %d", status->palm);
+    cts_info("Gndunstable: %d", status->gndunstable);
+    cts_info("Bending: %d", status->bending);
+    cts_info("Negdiffbaseupdate: %d", status->negdiffbaseupdate);
+    cts_info("Noisewarning: %d", status->noisewarning);
+    cts_info("Charge: %d", status->charge);
+    cts_info("Glove: %d", status->glove);
+
+    cts_info("Hoppingdx_1: %d", status->hoppingdx_1);
+    cts_info("Hoppingdx_2: %d", status->hoppingdx_2);
+    cts_info("Earlinestatus: %d", status->earlinestatus);
+    cts_info("Edgeinhibitionscreenmode_1: %d", status->edgeinhibitionscreenmode_1);
+    cts_info("Edgeinhibitionscreenmode_2: %d", status->edgeinhibitionscreenmode_2);
+    cts_info("Scan_error: %d", status->scan_error);
+    cts_info("Waterflag: %d", status->waterflag);
+    cts_info("Gamemode: %d", status->gamemode);
+
+    cts_info("firmware_status:%02x", msg->firmware_status);
+}
+
 #ifdef CFG_CTS_FW_LOG_REDIRECT
 void cts_show_fw_log(struct cts_device *cts_dev)
 {
@@ -1529,6 +1557,11 @@ int cts_irq_handler(struct cts_device *cts_dev)
             return ret;
         }
 #endif
+        cts_dbg("firmware status new:0x%04x,prv:0x%04x", touch_info->debug_msg.firmware_status, firmware_status_prv);
+        if (touch_info->debug_msg.firmware_status != firmware_status_prv) {
+            cts_show_firmware_status_msg(&touch_info->debug_msg);
+            firmware_status_prv = touch_info->debug_msg.firmware_status;
+        }
     }
 
     return 0;
