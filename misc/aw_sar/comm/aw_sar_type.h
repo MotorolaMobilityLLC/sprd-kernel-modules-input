@@ -137,6 +137,7 @@ struct aw_sar_irq_init_comm_t {
 	void *data;
 	uint8_t label[30];
 	uint8_t dev_id[30];
+	bool irq_wake_up;
 };
 
 struct aw_sar_load_bin_comm_t {

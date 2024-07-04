@@ -2088,6 +2088,7 @@ static int32_t aw_sar_i2c_probe(struct i2c_client *i2c, const struct i2c_device_
 
 	AWLOGD(&i2c->dev, "probe success!");
 
+	p_sar->irq_init.irq_wake_up = false;
 	return 0;
 err_chip_init:
 	aw_sar_sensor_free(p_sar);
@@ -2138,6 +2139,10 @@ static int aw_sar_suspend(struct device *dev)
 	struct aw_sar *p_sar = i2c_get_clientdata(client);
 
 	AWLOGI(p_sar->dev, "enter");
+	if (p_sar->irq_init.irq_wake_up == false) {
+		if (!enable_irq_wake(p_sar->irq_init.to_irq))
+                        p_sar->irq_init.irq_wake_up = true;
+	}
 
 	if (p_sar->dts_info.use_pm == true) {
 		if ((p_sar->p_sar_para->p_platform_config == NULL) ||
@@ -2159,6 +2164,11 @@ static int aw_sar_resume(struct device *dev)
 	struct aw_sar *p_sar = i2c_get_clientdata(client);
 
 	AWLOGI(p_sar->dev, "enter");
+
+	if (p_sar->irq_init.irq_wake_up == true) {
+                if (!disable_irq_wake(p_sar->irq_init.to_irq))
+                        p_sar->irq_init.irq_wake_up = false;
+        }
 
 	if (p_sar->dts_info.use_pm == true) {
 		if ((p_sar->p_sar_para->p_platform_config == NULL) ||
