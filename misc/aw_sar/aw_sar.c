@@ -1434,7 +1434,7 @@ static void aw_sar_update_work(struct work_struct *work)
 	}
 
 	//3.active chip
-	aw_sar_mode_set(p_sar, p_sar->p_sar_para->p_chip_mode->init_mode);
+	aw_sar_mode_set(p_sar, 0x02);
 	if (p_sar->irq_init.host_irq_stat == IRQ_DISABLE) {
 		enable_irq(p_sar->irq_init.to_irq);
 		p_sar->irq_init.host_irq_stat = IRQ_ENABLE;
@@ -2088,7 +2088,7 @@ static int32_t aw_sar_i2c_probe(struct i2c_client *i2c, const struct i2c_device_
 
 	AWLOGD(&i2c->dev, "probe success!");
 
-	p_sar->irq_init.irq_wake_up = false;
+	//p_sar->irq_init.irq_wake_up = false;
 	return 0;
 err_chip_init:
 	aw_sar_sensor_free(p_sar);
@@ -2139,11 +2139,17 @@ static int aw_sar_suspend(struct device *dev)
 	struct aw_sar *p_sar = i2c_get_clientdata(client);
 
 	AWLOGI(p_sar->dev, "enter");
+#if 0
 	if (p_sar->irq_init.irq_wake_up == false) {
 		if (!enable_irq_wake(p_sar->irq_init.to_irq))
                         p_sar->irq_init.irq_wake_up = true;
 	}
-
+#endif
+	aw_sar_mode_set(p_sar, 0x02);//AW963XX_SLEEP_MODE
+	aw_sar_disable_irq(p_sar);
+        if (p_sar->p_sar_para->p_platform_config->p_irq_init->rc_irq_fn != NULL)
+                p_sar->p_sar_para->p_platform_config->p_irq_init->rc_irq_fn(p_sar->i2c);
+	AWLOGI(p_sar->dev, "exit");
 	if (p_sar->dts_info.use_pm == true) {
 		if ((p_sar->p_sar_para->p_platform_config == NULL) ||
 			(p_sar->p_sar_para->p_platform_config->p_pm_chip_mode == NULL))
@@ -2164,12 +2170,16 @@ static int aw_sar_resume(struct device *dev)
 	struct aw_sar *p_sar = i2c_get_clientdata(client);
 
 	AWLOGI(p_sar->dev, "enter");
-
+#if 0
 	if (p_sar->irq_init.irq_wake_up == true) {
                 if (!disable_irq_wake(p_sar->irq_init.to_irq))
                         p_sar->irq_init.irq_wake_up = false;
         }
-
+#endif
+	aw_sar_enable_irq(p_sar);
+	aw_sar_i2c_write_bits(p_sar->i2c, 0x0004, ~0xfff, 0xfff);//REG_SCANCTRL1
+        aw_sar_mode_set(p_sar, 0x01);//AW963XX_ACTIVE_MODE
+	AWLOGI(p_sar->dev, "exit");
 	if (p_sar->dts_info.use_pm == true) {
 		if ((p_sar->p_sar_para->p_platform_config == NULL) ||
 			(p_sar->p_sar_para->p_platform_config->p_pm_chip_mode == NULL))
