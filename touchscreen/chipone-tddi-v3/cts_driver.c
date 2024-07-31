@@ -36,6 +36,7 @@ int cts_suspend(struct chipone_ts_data *cts_data)
 
     cts_info("Suspend");
 
+    cts_data->tp_suspend_flag = true;
     cts_lock_device(&cts_data->cts_dev);
     ret = cts_suspend_device(&cts_data->cts_dev);
     cts_unlock_device(&cts_data->cts_dev);
@@ -78,6 +79,7 @@ int cts_resume(struct chipone_ts_data *cts_data)
 
     cts_info("Resume");
 
+    cts_data->tp_suspend_flag = false;
 #ifdef CFG_CTS_GESTURE
     if (cts_is_gesture_wakeup_enabled(&cts_data->cts_dev)) {
         ret = cts_plat_disable_irq_wake(cts_data->pdata);

@@ -452,6 +452,7 @@ struct chipone_ts_data {
         bool d_tap_flag;
         bool s_tap_flag;
 #endif
+    bool tp_suspend_flag;
     void *oem_data;
 
     bool force_reflash;

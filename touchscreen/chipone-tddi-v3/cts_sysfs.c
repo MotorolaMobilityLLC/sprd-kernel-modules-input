@@ -3142,9 +3142,9 @@ static ssize_t cts_suspend_store(struct device *dev,
         struct device_attribute *attr, const char *buf, size_t count)
 {
     if (count >= 1) {
-        if (buf[0] == '1') {
+        if ((buf[0] == '1') && !g_cts_data->tp_suspend_flag) {
             cts_suspend(g_cts_data);
-        } else if (buf[0] == '0') {
+        } else if ((buf[0] == '0') && g_cts_data->tp_suspend_flag) {
             cts_resume(g_cts_data);
         } else {
             cts_err("usage: echo 0/1 > ts_suspend");
